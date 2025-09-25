@@ -1,5 +1,5 @@
 import { AxiosInstance } from 'axios';
-import { createApiBase, MPApiBase, ErrorDetails, MPGetOptions, MPCreateOptions, MPUpdateOptions, DateTimeIsoString } from './api';
+import { createApiBase, MPApiBase, ErrorDetails, MPGetQuery, MPCreateQuery, MPUpdateQuery, DateTimeIsoString } from './api';
 import { convertToCamelCase, convertToSnakeCase, escapeSql, stringifyURLParams } from './utils/converters';
 import { Contact, ContactRecord } from './tables/contacts';
 import { Event, EventRecord } from './tables/events';
@@ -13,52 +13,56 @@ import { ContactAttribute, ContactAttributeRecord, ContactWithAttribute } from '
 import { FormResponse, FormResponseRecord } from './tables/form-responses';
 import { FormResponseAnswer, FormResponseAnswerRecord } from './tables/from-response-answers';
 import { ContactEmailAddress, ContactEmailAddressRecord, ContactWithEmailAddress, ContactWithEmailAddresses } from './tables/contact-email-addresses';
+import { AttachedFile } from './tables/files';
 
 
 export type WithRequired<T, K extends keyof T> = T & Required<Pick<T, K>>;
 export type AtLeastOne<T> = { [K in keyof T]-?: Required<Pick<T, K>> }[keyof T];
 
-export type CreateContactParams = WithRequired<
+export type CreateContactPayload = WithRequired<
   Omit<Partial<Contact>, 'contactID'>,
   'company' | 'displayName'
 >;
-export type CreateHouseholdParams = WithRequired<
+export type CreateHouseholdPayload = WithRequired<
   Partial<Household>,
   'householdName'
 >;
-export type CreateAddressParams = WithRequired<
+export type CreateAddressPayload = WithRequired<
   Partial<Address>,
   'addressLine1'
 >;
-export type CreateParticipantParams = WithRequired<
+export type CreateParticipantPayload = WithRequired<
   Partial<Participant>,
   'contactID' | 'participantTypeID' | 'participantStartDate'
 >;
-export type CreateEventParticipantParams = WithRequired<
+export type CreateEventParticipantPayload = WithRequired<
   Partial<EventParticipant>,
   'eventID' | 'participantID' | 'participationStatusID'
 >;
-export type CreateGroupParticipantParams = WithRequired<
+export type CreateGroupParticipantPayload = WithRequired<
   Partial<GroupParticipant>,
   'groupID' | 'participantID' | 'groupRoleID' | 'startDate'
 >;
-export type CreateContactAttributeParams = WithRequired<
+export type CreateContactAttributePayload = WithRequired<
   Partial<ContactAttribute>,
   'attributeID' | 'contactID' | 'startDate'
 >;
-export type CreateFormResponseParams = WithRequired<
+export type CreateFormResponsePayload = WithRequired<
   Omit<Partial<FormResponse>, 'formResponseID'>,
   'formID' | 'responseDate'
 >;
-export type CreateFormResponseAnswerParams = WithRequired<
+export type CreateFormResponseAnswerPayload = WithRequired<
   Omit<Partial<FormResponseAnswer>, 'formResponseAnswerID'>,
   'formFieldID' | 'formResponseID'
 >;
-export type CreateContactEmailAddressParams = WithRequired<
+export type CreateContactEmailAddressPayload = WithRequired<
   Omit<Partial<ContactEmailAddress>, 'emailAddressID'>,
   'emailAddress' | 'contactID'
 >;
-
+export type CreateFilePayload = WithRequired<
+  Omit<Partial<AttachedFile>, 'FileId'>,
+  'Description' | 'IsDefaultImage'
+>;
 
 
 export interface ContactDetails extends Contact, Participant, Household {
@@ -77,383 +81,417 @@ export type MPInstance = {
   post: AxiosInstance['post'];
   createOne: MPApiBase['createOne'];
   createMany: MPApiBase['createMany'];
-  update: MPApiBase['update'];
+  updateMany: MPApiBase['updateMany'];
   getOne: MPApiBase['getOne'];
   getMany: MPApiBase['getMany'];
+  createFile: MPApiBase['createFile'];
+  updateFile: MPApiBase['updateFile'];
 
   getContact(
     id: number,
-    options?: MPGetOptions
+    mpQuery?: MPGetQuery
   ): Promise<Contact | undefined | { error: ErrorDetails; }>;
   getContactDetails(
     id: number,
-    options?: MPGetOptions
+    mpQuery?: MPGetQuery
   ): Promise<ContactDetails | undefined | { error: ErrorDetails; }>;
   getContactAttribute(
     id: number,
-    options?: MPGetOptions
+    mpQuery?: MPGetQuery
   ): Promise<ContactAttribute | undefined | { error: ErrorDetails; }>;
   getContactEmailAddress(
     id: number,
-    options?: MPGetOptions
+    mpQuery?: MPGetQuery
   ): Promise<ContactEmailAddress | undefined | { error: ErrorDetails; }>;
   getHousehold(
     id: number,
-    options?: MPGetOptions
+    mpQuery?: MPGetQuery
   ): Promise<Household | undefined | { error: ErrorDetails; }>;
   getAddress(
     id: number,
-    options?: MPGetOptions
+    mpQuery?: MPGetQuery
   ): Promise<Address | undefined | { error: ErrorDetails; }>;
   getParticipant(
     id: number,
-    options?: MPGetOptions
+    mpQuery?: MPGetQuery
   ): Promise<Participant | undefined | { error: ErrorDetails; }>;
   getEvent(
     id: number,
-    options?: MPGetOptions
+    mpQuery?: MPGetQuery
   ): Promise<Event | undefined | { error: ErrorDetails; }>;
   getGroup(
     id: number,
-    options?: MPGetOptions
+    mpQuery?: MPGetQuery
   ): Promise<Group | undefined | { error: ErrorDetails; }>;
   getEventParticipant(
     id: number,
-    options?: MPGetOptions
+    mpQuery?: MPGetQuery
   ): Promise<EventParticipant | undefined | { error: ErrorDetails; }>;
   getGroupParticipant(
     id: number,
-    options?: MPGetOptions
+    mpQuery?: MPGetQuery
   ): Promise<GroupParticipant | undefined | { error: ErrorDetails; }>;
   getFormResponse(
     id: number,
-    options?: MPGetOptions
+    mpQuery?: MPGetQuery
   ): Promise<FormResponse | undefined | { error: ErrorDetails; }>;
 
   getContacts(
-    options: AtLeastOne<MPGetOptions>
+    mpQuery: AtLeastOne<MPGetQuery>
   ): Promise<Contact[] | { error: ErrorDetails; }>;
   getContactAttributes(
-    options: AtLeastOne<MPGetOptions>
+    mpQuery: AtLeastOne<MPGetQuery>
   ): Promise<ContactAttribute[] | { error: ErrorDetails; }>;
   getContactsWithAttributes(
-    options: AtLeastOne<Omit<MPGetOptions, "select">>
+    mpQuery: AtLeastOne<Omit<MPGetQuery, "select">>
   ): Promise<ContactWithAttribute[] | { error: ErrorDetails; }>;
   getContactEmailAddresses(
-    options: AtLeastOne<MPGetOptions>
+    mpQuery: AtLeastOne<MPGetQuery>
   ): Promise<ContactEmailAddress[] | { error: ErrorDetails; }>;
   getContactsWithEmailAddress(
-    options: AtLeastOne<Omit<MPGetOptions, "select">>
+    mpQuery: AtLeastOne<Omit<MPGetQuery, "select">>
   ): Promise<ContactWithEmailAddress[] | { error: ErrorDetails; }>;
   getHouseholds(
-    options: AtLeastOne<MPGetOptions>
+    mpQuery: AtLeastOne<MPGetQuery>
   ): Promise<Household[] | { error: ErrorDetails; }>;
   getAddresses(
-    options: AtLeastOne<MPGetOptions>
+    mpQuery: AtLeastOne<MPGetQuery>
   ): Promise<Address[] | { error: ErrorDetails; }>;
   getParticipants(
-    options: AtLeastOne<MPGetOptions>
+    mpQuery: AtLeastOne<MPGetQuery>
   ): Promise<Participant[] | { error: ErrorDetails; }>;
   getEvents(
-    options: AtLeastOne<MPGetOptions>
+    mpQuery: AtLeastOne<MPGetQuery>
   ): Promise<Event[] | { error: ErrorDetails; }>;
   getGroups(
-    options: AtLeastOne<MPGetOptions>
+    mpQuery: AtLeastOne<MPGetQuery>
   ): Promise<Group[] | { error: ErrorDetails; }>;
   getEventParticipants(
-    options: AtLeastOne<MPGetOptions>
+    mpQuery: AtLeastOne<MPGetQuery>
   ): Promise<EventParticipant[] | { error: ErrorDetails; }>;
   getGroupParticipants(
-    options: AtLeastOne<MPGetOptions>
+    mpQuery: AtLeastOne<MPGetQuery>
   ): Promise<GroupParticipant[] | { error: ErrorDetails; }>;
   getFormResponseAnswers(
-    options: AtLeastOne<MPGetOptions>
+    mpQuery: AtLeastOne<MPGetQuery>
   ): Promise<FormResponseAnswer[] | { error: ErrorDetails; }>;
 
   createContact(
-    params: CreateContactParams,
-    options?: MPCreateOptions
+    data: CreateContactPayload,
+    mpQuery?: MPCreateQuery
   ): Promise<Contact | { error: ErrorDetails; }>;
   createHousehold(
-    params: CreateHouseholdParams,
-    options?: MPCreateOptions
+    data: CreateHouseholdPayload,
+    mpQuery?: MPCreateQuery
   ): Promise<Household | { error: ErrorDetails; }>;
   createAddress(
-    params: CreateAddressParams,
-    options?: MPCreateOptions
+    data: CreateAddressPayload,
+    mpQuery?: MPCreateQuery
   ): Promise<Address | { error: ErrorDetails; }>;
   createParticipant(
-    params: CreateParticipantParams,
-    options?: MPCreateOptions
+    data: CreateParticipantPayload,
+    mpQuery?: MPCreateQuery
   ): Promise<Participant | { error: ErrorDetails; }>;
   createEventParticipant(
-    params: CreateEventParticipantParams,
-    options?: MPCreateOptions
+    data: CreateEventParticipantPayload,
+    mpQuery?: MPCreateQuery
   ): Promise<EventParticipant | { error: ErrorDetails; }>;
   createGroupParticipant(
-    params: CreateGroupParticipantParams,
-    options?: MPCreateOptions
+    data: CreateGroupParticipantPayload,
+    mpQuery?: MPCreateQuery
   ): Promise<GroupParticipant | { error: ErrorDetails; }>;
   createContactAttribute(
-    params: CreateContactAttributeParams,
-    options?: MPCreateOptions
+    data: CreateContactAttributePayload,
+    mpQuery?: MPCreateQuery
   ): Promise<ContactAttribute | { error: ErrorDetails; }>;
   createFormResponse(
-    params: CreateFormResponseParams,
-    options?: MPCreateOptions
+    data: CreateFormResponsePayload,
+    mpQuery?: MPCreateQuery
   ): Promise<FormResponse | { error: ErrorDetails; }>;
   createFormResponseAnswers(
-    params: CreateFormResponseAnswerParams[],
-    options?: MPCreateOptions
+    data: CreateFormResponseAnswerPayload[],
+    mpQuery?: MPCreateQuery
   ): Promise<FormResponseAnswer[] | { error: ErrorDetails; }>;
   createContactEmailAddress(
-    params: CreateContactEmailAddressParams[],
-    options?: MPCreateOptions
+    data: CreateContactEmailAddressPayload[],
+    mpQuery?: MPCreateQuery
   ): Promise<ContactEmailAddress[] | { error: ErrorDetails; }>;
 
   updateContacts(
     contacts: WithRequired<Partial<Contact>, 'contactID'>[],
-    options?: MPUpdateOptions
+    mpQuery?: MPUpdateQuery
   ): Promise<Contact[] | { error: ErrorDetails; }>;
   updateHouseholds(
     households: WithRequired<Partial<Household>, 'householdID'>[],
-    options?: MPUpdateOptions
+    mpQuery?: MPUpdateQuery
   ): Promise<Household[] | { error: ErrorDetails; }>;
   updateEventParticipants(
     participants: WithRequired<Partial<EventParticipant>, 'eventParticipantID'>[],
-    options?: MPUpdateOptions
+    mpQuery?: MPUpdateQuery
   ): Promise<EventParticipant[] | { error: ErrorDetails; }>;
   updateGroupParticipants(
     participants: WithRequired<Partial<GroupParticipant>, 'groupParticipantID'>[],
-    options?: MPUpdateOptions
+    mpQuery?: MPUpdateQuery
   ): Promise<GroupParticipant[] | { error: ErrorDetails; }>;
   updateFormResponseAnswers(
     participants: WithRequired<Partial<FormResponseAnswer>, 'formResponseAnswerID'>[],
-    options?: MPUpdateOptions
+    mpQuery?: MPUpdateQuery
   ): Promise<FormResponseAnswer[] | { error: ErrorDetails; }>;
+
+  getFiles(table: string, recordId: number, mpQuery?: MPGetQuery)
+    : Promise<AttachedFile[] | { error: ErrorDetails; }>;
+  uploadFile(table: string, recordId: number, data: FormData)
+    : Promise<AttachedFile | { error: ErrorDetails; }>;
+  updateFiles(table: string, fileId: number, data: WithRequired<Partial<AttachedFile>, 'FileId'>[])
+    : Promise<AttachedFile[] | { error: ErrorDetails; }>;
 };
 
 
 export const createMPInstance = ({ auth }: { auth: { username: string; password: string; }; }): MPInstance => {
 
-  const { getOne, getMany, createOne, createMany, update, get, post, put } = createApiBase({ auth });
+  const { getOne, getMany, createOne, createMany, updateMany, createFile, updateFile, get, post, put } = createApiBase({ auth });
 
   return {
+    get,
+    post,
+    put,
     getOne,
     getMany,
     createOne,
     createMany,
-    update,
-    get,
-    post,
-    put,
-    async getContact(id, mpOptions = {}) {
-      return getOne<ContactRecord, Contact>(
-        { path: `/tables/contacts`, id, mpOptions }
+    updateMany,
+    createFile,
+    updateFile,
+    async getContact(id, mpQuery = {}) {
+      return getOne<Contact>(
+        { path: `/tables/contacts`, id, mpQuery }
       );
     },
-    async getContactDetails(id, mpOptions) {
-      return getOne<ContactRecord, ContactDetails>(
-        { path: `/tables/contacts`, id, 
-          mpOptions: { ...mpOptions, 
-            select: 'Contacts.*, Participant_Record_Table.*, Household_ID_Table.*, Gender_ID_Table.Gender, Participant_Record_Table_Member_Status_ID_Table.Member_Status, Marital_Status_ID_Table.Marital_Status, dp_fileUniqueId as Image_ID' } 
+    async getContactDetails(id, mpQuery) {
+      return getOne<ContactDetails>(
+        {
+          path: `/tables/contacts`, id,
+          mpQuery: {
+            ...mpQuery,
+            select: 'Contacts.*, Participant_Record_Table.*, Household_ID_Table.*, Gender_ID_Table.Gender, Participant_Record_Table_Member_Status_ID_Table.Member_Status, Participant_Record_Table_Participant_Type_ID_Table.Participant_Type, Marital_Status_ID_Table.Marital_Status, dp_fileUniqueId as Image_ID'
+          }
         }
       );
     },
-    async getContactAttribute(id, mpOptions = {}) {
-      return getOne<ContactAttributeRecord, ContactAttribute>(
-        { path: `/tables/contact_attributes`, id, mpOptions }
+    async getContactAttribute(id, mpQuery = {}) {
+      return getOne<ContactAttribute>(
+        { path: `/tables/contact_attributes`, id, mpQuery }
       );
     },
-    async getContactEmailAddress(id, mpOptions = {}) {
-      return getOne<ContactEmailAddressRecord, ContactEmailAddress>(
-        { path: `/tables/contact_email_addresses`, id, mpOptions }
+    async getContactEmailAddress(id, mpQuery = {}) {
+      return getOne<ContactEmailAddress>(
+        { path: `/tables/contact_email_addresses`, id, mpQuery }
       );
     },
-    async getHousehold(id, mpOptions = {}) {
-      return getOne<HouseholdRecord, Household>(
-        { path: `/tables/households`, id, mpOptions }
+    async getHousehold(id, mpQuery = {}) {
+      return getOne<Household>(
+        { path: `/tables/households`, id, mpQuery }
       );
     },
-    async getAddress(id, mpOptions = {}) {
-      return getOne<AddressRecord, Address>(
-        { path: `/tables/addresses`, id, mpOptions }
+    async getAddress(id, mpQuery = {}) {
+      return getOne<Address>(
+        { path: `/tables/addresses`, id, mpQuery }
       );
     },
-    async getParticipant(id, mpOptions = {}) {
-      return getOne<ParticipantRecord, Participant>(
-        { path: `/tables/participants`, id, mpOptions }
+    async getParticipant(id, mpQuery = {}) {
+      return getOne<Participant>(
+        { path: `/tables/participants`, id, mpQuery }
       );
     },
-    async getEvent(id, mpOptions = {}) {
-      return getOne<EventRecord, Event>(
-        { path: `/tables/events`, id, mpOptions }
+    async getEvent(id, mpQuery = {}) {
+      return getOne<Event>(
+        { path: `/tables/events`, id, mpQuery }
       );
     },
-    async getGroup(id, mpOptions = {}) {
-      return getOne<GroupRecord, Group>(
-        { path: `/tables/groups`, id, mpOptions }
+    async getGroup(id, mpQuery = {}) {
+      return getOne<Group>(
+        { path: `/tables/groups`, id, mpQuery }
       );
     },
-    async getEventParticipant(id, mpOptions = {}) {
-      return getOne<EventParticipantRecord, EventParticipant>(
-        { path: `/tables/event_participants`, id, mpOptions }
+    async getEventParticipant(id, mpQuery = {}) {
+      return getOne<EventParticipant>(
+        { path: `/tables/event_participants`, id, mpQuery }
       );
     },
-    async getGroupParticipant(id, mpOptions = {}) {
-      return getOne<GroupParticipantRecord, GroupParticipant>(
-        { path: `/tables/group_participants`, id, mpOptions }
+    async getGroupParticipant(id, mpQuery = {}) {
+      return getOne<GroupParticipant>(
+        { path: `/tables/group_participants`, id, mpQuery }
       );
     },
-    async getFormResponse(id, mpOptions = {}) {
-      return getOne<FormResponseRecord, FormResponse>(
-        { path: `/tables/form_responses`, id, mpOptions }
+    async getFormResponse(id, mpQuery = {}) {
+      return getOne<FormResponse>(
+        { path: `/tables/form_responses`, id, mpQuery }
       );
     },
-    async getContacts(mpOptions) {
-      return getMany<ContactRecord, Contact>(
-        { path: `/tables/contacts`, mpOptions }
+    async getContacts(mpQuery) {
+      return getMany<Contact>(
+        { path: `/tables/contacts`, mpQuery }
       );
     },
-    async getContactAttributes(mpOptions) {
-      return getMany<ContactAttributeRecord, ContactAttribute>(
-        { path: `/tables/contact_attributes`, mpOptions }
+    async getContactAttributes(mpQuery) {
+      return getMany<ContactAttribute>(
+        { path: `/tables/contact_attributes`, mpQuery }
       );
     },
-    async getContactsWithAttributes(mpOptions) {
-      return getMany<ContactAttributeRecord, ContactWithAttribute>(
-        { path: `/tables/contact_attributes`, 
-          mpOptions: { ...mpOptions, select: 'Contact_ID_Table.*, Contact_Attributes.*' } 
+    async getContactsWithAttributes(mpQuery) {
+      return getMany<ContactWithAttribute>(
+        {
+          path: `/tables/contact_attributes`,
+          mpQuery: { ...mpQuery, select: 'Contact_ID_Table.*, Contact_Attributes.*' }
         }
       );
     },
-    async getContactEmailAddresses(mpOptions) {
-      return getMany<ContactEmailAddressRecord, ContactEmailAddress>(
-        { path: `/tables/contact_email_addresses`, mpOptions }
+    async getContactEmailAddresses(mpQuery) {
+      return getMany<ContactEmailAddress>(
+        { path: `/tables/contact_email_addresses`, mpQuery }
       );
     },
-    async getContactsWithEmailAddress(mpOptions) {
-      return getMany<ContactEmailAddressRecord, ContactWithEmailAddress>(
-        { path: `/tables/contact_email_addresses`, 
-          mpOptions: { ...mpOptions, 
-            select: 'Contact_ID_Table.*, Contact_Email_Addresses.Email_Address As Alternate_Email, Contact_Email_Addresses.*' } 
+    async getContactsWithEmailAddress(mpQuery) {
+      return getMany<ContactWithEmailAddress>(
+        {
+          path: `/tables/contact_email_addresses`,
+          mpQuery: {
+            ...mpQuery,
+            select: 'Contact_ID_Table.*, Contact_Email_Addresses.Email_Address As Alternate_Email, Contact_Email_Addresses.*'
+          }
         }
       );
     },
-    async getHouseholds(mpOptions) {
-      return getMany<HouseholdRecord, Household>(
-        { path: `/tables/households`, mpOptions }
+    async getHouseholds(mpQuery) {
+      return getMany<Household>(
+        { path: `/tables/households`, mpQuery }
       );
     },
-    async getAddresses(mpOptions) {
-      return getMany<AddressRecord, Address>(
-        { path: `/tables/addresses`, mpOptions }
+    async getAddresses(mpQuery) {
+      return getMany<Address>(
+        { path: `/tables/addresses`, mpQuery }
       );
     },
-    async getParticipants(mpOptions) {
-      return getMany<ParticipantRecord, Participant>(
-        { path: `/tables/participants`, mpOptions }
+    async getParticipants(mpQuery) {
+      return getMany<Participant>(
+        { path: `/tables/participants`, mpQuery }
       );
     },
-    async getEvents(mpOptions) {
-      return getMany<EventRecord, Event>(
-        { path: `/tables/events`, mpOptions }
+    async getEvents(mpQuery) {
+      return getMany<Event>(
+        { path: `/tables/events`, mpQuery }
       );
     },
-    async getGroups(mpOptions) {
-      return getMany<GroupRecord, Group>(
-        { path: `/tables/groups`, mpOptions }
+    async getGroups(mpQuery) {
+      return getMany<Group>(
+        { path: `/tables/groups`, mpQuery }
       );
     },
-    async getEventParticipants(mpOptions) {
-      return getMany<EventParticipantRecord, EventParticipant>(
-        { path: `/tables/event_participants`, mpOptions }
+    async getEventParticipants(mpQuery) {
+      return getMany<EventParticipant>(
+        { path: `/tables/event_participants`, mpQuery }
       );
     },
-    async getGroupParticipants(mpOptions) {
-      return getMany<GroupParticipantRecord, GroupParticipant>(
-        { path: `/tables/group_participants`, mpOptions }
+    async getGroupParticipants(mpQuery) {
+      return getMany<GroupParticipant>(
+        { path: `/tables/group_participants`, mpQuery }
       );
     },
-    async getFormResponseAnswers(mpOptions) {
-      return getMany<FormResponseAnswerRecord, FormResponseAnswer>(
-        { path: `/tables/form_response_answers`, mpOptions }
+    async getFormResponseAnswers(mpQuery) {
+      return getMany<FormResponseAnswer>(
+        { path: `/tables/form_response_answers`, mpQuery }
       );
     },
 
-    async createContact(params, mpOptions = {}) {
-      return createOne<CreateContactParams, Contact>(
-        { path: `/tables/contacts`, mpOptions, params }
+    async createContact(data, mpQuery = {}) {
+      return createOne<Contact>(
+        { path: `/tables/contacts`, mpQuery, data }
       );
     },
-    async createHousehold(params, mpOptions) {
-      return createOne<CreateHouseholdParams, Household>(
-        { path: `/tables/households`, mpOptions, params }
+    async createHousehold(data, mpQuery) {
+      return createOne<Household>(
+        { path: `/tables/households`, mpQuery, data }
       );
     },
-    async createAddress(params, mpOptions) {
-      return createOne<CreateAddressParams, Address>(
-        { path: `/tables/addresses`, mpOptions, params }
+    async createAddress(data, mpQuery) {
+      return createOne<Address>(
+        { path: `/tables/addresses`, mpQuery, data }
       );
     },
-    async createParticipant(params, mpOptions) {
-      return createOne<CreateParticipantParams, Participant>(
-        { path: `/tables/participants`, mpOptions, params }
+    async createParticipant(data, mpQuery) {
+      return createOne<Participant>(
+        { path: `/tables/participants`, mpQuery, data }
       );
     },
-    async createEventParticipant(params, mpOptions) {
-      return createOne<CreateEventParticipantParams, EventParticipant>(
-        { path: `/tables/event_participants`, mpOptions, params }
+    async createEventParticipant(data, mpQuery) {
+      return createOne<EventParticipant>(
+        { path: `/tables/event_participants`, mpQuery, data }
       );
     },
-    async createGroupParticipant(params, mpOptions) {
-      return createOne<CreateGroupParticipantParams, GroupParticipant>(
-        { path: `/tables/group_participants`, mpOptions, params }
+    async createGroupParticipant(data, mpQuery) {
+      return createOne<GroupParticipant>(
+        { path: `/tables/group_participants`, mpQuery, data }
       );
     },
-    async createContactAttribute(params, mpOptions) {
-      return createOne<CreateContactAttributeParams, ContactAttribute>(
-        { path: `/tables/contact_attributes`, mpOptions, params }
+    async createContactAttribute(data, mpQuery) {
+      return createOne<ContactAttribute>(
+        { path: `/tables/contact_attributes`, mpQuery, data }
       );
     },
-    async createFormResponse(params: CreateFormResponseParams, mpOptions) {
-      return createOne<CreateFormResponseParams, FormResponse>(
-        { path: `/tables/form_responses`, mpOptions, params }
+    async createFormResponse(data: CreateFormResponsePayload, mpQuery) {
+      return createOne<FormResponse>(
+        { path: `/tables/form_responses`, mpQuery, data }
       );
     },
-    async createFormResponseAnswers(params, mpOptions) {
-      return createMany<CreateFormResponseAnswerParams, FormResponseAnswer>(
-        { path: `/tables/form_response_answers`, mpOptions, params }
+    async createFormResponseAnswers(data, mpQuery) {
+      return createMany<FormResponseAnswer>(
+        { path: `/tables/form_response_answers`, mpQuery, data }
       );
     },
-    async createContactEmailAddress(params, mpOptions) {
-      return createMany<CreateContactEmailAddressParams, ContactEmailAddress>(
-        { path: `/tables/contact_email_addresses`, mpOptions, params }
+    async createContactEmailAddress(data, mpQuery) {
+      return createMany<ContactEmailAddress>(
+        { path: `/tables/contact_email_addresses`, mpQuery, data }
       );
     },
-    async updateContacts(params, mpOptions) {
-      return update<Partial<Contact>, Contact>(
-        { path: `/tables/contacts`, mpOptions, params }
+    async updateContacts(data, mpQuery) {
+      return updateMany<Contact>(
+        { path: `/tables/contacts`, mpQuery, data }
       );
     },
-    async updateHouseholds(params, mpOptions) {
-      return update<Partial<Household>, Household>(
-        { path: `/tables/households`, mpOptions, params }
+    async updateHouseholds(data, mpQuery) {
+      return updateMany<Household>(
+        { path: `/tables/households`, mpQuery, data }
       );
     },
-    async updateEventParticipants(params, mpOptions) {
-      return update<Partial<EventParticipant>, EventParticipant>(
-        { path: `/tables/event_participants`, mpOptions, params }
+    async updateEventParticipants(data, mpQuery) {
+      return updateMany<EventParticipant>(
+        { path: `/tables/event_participants`, mpQuery, data }
       );
     },
-    async updateGroupParticipants(params, mpOptions) {
-      return update<Partial<GroupParticipant>, GroupParticipant>(
-        { path: `/tables/group_participants`, mpOptions, params }
+    async updateGroupParticipants(data, mpQuery) {
+      return updateMany<GroupParticipant>(
+        { path: `/tables/group_participants`, mpQuery, data }
       );
     },
-    async updateFormResponseAnswers(params, mpOptions) {
-      return update<Partial<FormResponseAnswer>, FormResponseAnswer>(
-        { path: `/tables/form_response_answers`, mpOptions, params }
+    async updateFormResponseAnswers(data, mpQuery) {
+      return updateMany<FormResponseAnswer>(
+        { path: `/tables/form_response_answers`, mpQuery, data }
+      );
+    },
+
+    async getFiles(table, recordId) {
+      return getMany<AttachedFile>(
+        { path: `/files/${table}/${recordId}`, mpQuery: {} }
+      );
+    },
+    async uploadFile(table, recordId, data) {
+      return createFile<AttachedFile>(
+        { path: `/files/${table}/${recordId}`, data }
+      );
+    },
+    async updateFiles(table, fileId, data) {
+      return updateMany<AttachedFile>(
+        { path: `/files/${table}/${fileId}`, data }
       );
     },
   };

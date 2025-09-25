@@ -107,10 +107,10 @@ export function caseConverter<T>(obj: T, { type, capitalIds = false }: { type: '
   return obj; // Return value if it's neither an array nor an object
 }
 
-export function convertToCamelCase<T = any, R = any>(obj: Partial<T>, capitalIds = true): R {
+export function convertToCamelCase<T extends Record<string, any> = Record<string, any>, D extends Record<string, any> = Record<string, any>>(obj: Partial<D>, capitalIds = true): T {
   return caseConverter(obj, { type: 'toCamel', capitalIds });
 }
 
-export function convertToSnakeCase<T = any, R = any>(obj: Partial<T>, capitalIds = true): R {
+export function convertToSnakeCase<T extends Record<string, any> = Record<string, any>, D extends Record<string, any> = Record<string, any>>(obj: Partial<D>, capitalIds = true): T {
   return caseConverter(obj, { type: 'toSnake', capitalIds });
 }

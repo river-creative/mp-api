@@ -51,6 +51,10 @@ export interface ContactRecord {
     Current_School: unknown | null;
     Other_Information: unknown | null;
     Communication_Preferences: unknown | null;
+
+    Ministry_Safe_ID: number | null;
+    Populi_ID: number | null;
+    Planning_Center_ID: number | null;
 }
 
 export interface Contact {
@@ -104,4 +108,8 @@ export interface Contact {
     currentSchool: unknown | null;
     otherInformation: unknown | null;
     communicationPreferences: unknown | null;
+
+    ministrySafeID: number | null;
+    populiID: number | null;
+    planningCenterID: number | null;
 }
