@@ -114,3 +114,67 @@ export function convertToCamelCase<T extends Record<string, any> = Record<string
 export function convertToSnakeCase<T extends Record<string, any> = Record<string, any>, D extends Record<string, any> = Record<string, any>>(obj: Partial<D>, capitalIds = true): T {
   return caseConverter(obj, { type: 'toSnake', capitalIds });
 }
+
+/**
+ * Converts a camelCase string to PascalCase.
+ * Example: "authorUserId" → "AuthorUserId"
+ */
+export function toPascalCase(str: string): string {
+  if (!str) return str;
+  return str.charAt(0).toUpperCase() + str.slice(1);
+}
+
+/**
+ * Converts a PascalCase string to camelCase.
+ * Example: "AuthorUserId" → "authorUserId"
+ */
+export function fromPascalCase(str: string): string {
+  if (!str) return str;
+  return str.charAt(0).toLowerCase() + str.slice(1);
+}
+
+/**
+ * Recursively converts object keys between camelCase and PascalCase.
+ * Used for /communications, /messages, /texts, /procs endpoints.
+ */
+export function pascalCaseConverter<T>(
+  obj: T,
+  direction: 'toPascal' | 'fromPascal'
+): T {
+  const caseFn = direction === 'toPascal' ? toPascalCase : fromPascalCase;
+
+  if (Array.isArray(obj)) {
+    return obj.map(val => pascalCaseConverter(val, direction)) as T;
+  }
+
+  if (obj !== null && typeof obj === 'object') {
+    const result: Record<string, unknown> = {};
+    for (const key in obj) {
+      if (Object.prototype.hasOwnProperty.call(obj, key)) {
+        const newKey = caseFn(key);
+        result[newKey] = pascalCaseConverter((obj as Record<string, unknown>)[key], direction);
+      }
+    }
+    return result as T;
+  }
+
+  return obj;
+}
+
+/**
+ * Converts camelCase object keys to PascalCase.
+ * Used for outgoing requests to /communications, /messages, /texts endpoints.
+ * Example: { authorUserId: 1 } → { AuthorUserId: 1 }
+ */
+export function convertToPascalCase<T extends Record<string, any>>(obj: T): T {
+  return pascalCaseConverter(obj, 'toPascal');
+}
+
+/**
+ * Converts PascalCase object keys to camelCase.
+ * Used for incoming responses from /communications, /messages, /texts, /procs endpoints.
+ * Example: { AuthorUserId: 1 } → { authorUserId: 1 }
+ */
+export function convertFromPascalCase<T extends Record<string, any>>(obj: T): T {
+  return pascalCaseConverter(obj, 'fromPascal');
+}

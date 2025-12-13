@@ -1,7 +1,11 @@
-import { AxiosInstance } from 'axios';
+import { AxiosInstance, AxiosRequestConfig } from 'axios';
 import { createApiBase, MPApiBase, ErrorDetails, MPGetQuery, MPCreateQuery, MPUpdateQuery, DateTimeIsoString } from './api';
-import { convertToCamelCase, convertToSnakeCase, escapeSql, stringifyURLParams } from './utils/converters';
+import { convertToCamelCase, convertToSnakeCase, convertToPascalCase, convertFromPascalCase, escapeSql, stringifyURLParams } from './utils/converters';
 import { Contact, ContactRecord } from './tables/contacts';
+import { Communication, CommunicationInfo, CommunicationType, CommunicationStatus, TextingComplianceLevel } from './endpoints/communications';
+import { MessageInfo, MessageAddress } from './endpoints/messages';
+import { TextInfo } from './endpoints/texts';
+import { ProcedureInfo, ParameterInfo, ParameterDirection, ParameterDataType, ProcedureInput } from './endpoints/procedures';
 import { Event, EventRecord } from './tables/events';
 import { Group, GroupRecord } from './tables/groups';
 import { Address, AddressRecord } from './tables/addresses';
@@ -62,6 +66,20 @@ export type CreateContactEmailAddressPayload = WithRequired<
 export type CreateFilePayload = WithRequired<
   Omit<Partial<AttachedFile>, 'FileId'>,
   'Description' | 'IsDefaultImage'
+>;
+
+// Communications API payload types
+export type CreateCommunicationPayload = WithRequired<
+  CommunicationInfo,
+  'authorUserId' | 'subject' | 'fromContactId' | 'replyToContactId' | 'communicationType' | 'contacts'
+>;
+export type CreateMessagePayload = WithRequired<
+  MessageInfo,
+  'fromAddress' | 'toAddresses' | 'subject' | 'body'
+>;
+export type CreateTextPayload = WithRequired<
+  TextInfo,
+  'fromPhoneNumberId' | 'toPhoneNumbers' | 'message'
 >;
 
 
@@ -244,12 +262,41 @@ export type MPInstance = {
     : Promise<AttachedFile | { error: ErrorDetails; }>;
   updateFiles(table: string, fileId: number, data: WithRequired<Partial<AttachedFile>, 'FileId'>[])
     : Promise<AttachedFile[] | { error: ErrorDetails; }>;
+
+  // Communications API
+  sendCommunication(
+    data: CreateCommunicationPayload,
+    config?: AxiosRequestConfig
+  ): Promise<Communication | { error: ErrorDetails; }>;
+  sendMessage(
+    data: CreateMessagePayload,
+    config?: AxiosRequestConfig
+  ): Promise<Communication | { error: ErrorDetails; }>;
+  sendText(
+    data: CreateTextPayload,
+    config?: AxiosRequestConfig
+  ): Promise<Communication | { error: ErrorDetails; }>;
+
+  // Procedures API
+  getProcedures(
+    search?: string,
+    config?: AxiosRequestConfig
+  ): Promise<ProcedureInfo[] | { error: ErrorDetails; }>;
+  executeProcedure<T = Record<string, any>>(
+    procedureName: string,
+    input?: ProcedureInput,
+    config?: AxiosRequestConfig
+  ): Promise<T[][] | { error: ErrorDetails; }>;
 };
 
 
 export const createMPInstance = ({ auth }: { auth: { username: string; password: string; }; }): MPInstance => {
 
-  const { getOne, getMany, createOne, createMany, updateMany, createFile, updateFile, get, post, put } = createApiBase({ auth });
+  const {
+    getOne, getMany, createOne, createMany, updateMany, createFile, updateFile,
+    get, post, put,
+    sendCommunication, sendMessage, sendText, getProcedures, executeProcedure
+  } = createApiBase({ auth });
 
   return {
     get,
@@ -494,10 +541,20 @@ export const createMPInstance = ({ auth }: { auth: { username: string; password:
         { path: `/files/${table}/${fileId}`, data }
       );
     },
+
+    // Communications API
+    sendCommunication,
+    sendMessage,
+    sendText,
+
+    // Procedures API
+    getProcedures,
+    executeProcedure,
   };
 };
 
 export {
+  // Tables
   Contact,
   Participant,
   Event,
@@ -513,10 +570,31 @@ export {
   ContactEmailAddress,
   ContactWithEmailAddress,
   ContactWithEmailAddresses,
+
+  // Communications endpoint types
+  Communication,
+  CommunicationInfo,
+  CommunicationType,
+  CommunicationStatus,
+  TextingComplianceLevel,
+  MessageInfo,
+  MessageAddress,
+  TextInfo,
+
+  // Procedures endpoint types
+  ProcedureInfo,
+  ParameterInfo,
+  ParameterDirection,
+  ParameterDataType,
+  ProcedureInput,
+
+  // Utilities
   ErrorDetails,
   DateTimeIsoString,
   convertToCamelCase,
   convertToSnakeCase,
+  convertToPascalCase,
+  convertFromPascalCase,
   stringifyURLParams,
   escapeSql
 };

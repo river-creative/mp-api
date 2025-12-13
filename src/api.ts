@@ -1,6 +1,10 @@
 import axios, { AxiosError, AxiosInstance, AxiosRequestConfig, AxiosResponse } from 'axios';
 import { URLSearchParams } from 'url';
-import { convertToCamelCase, convertToSnakeCase, escapeApostrophes, stringifyURLParams, toCapitalSnakeCase } from './utils/converters';
+import { convertToCamelCase, convertToSnakeCase, convertToPascalCase, convertFromPascalCase, escapeApostrophes, stringifyURLParams, toCapitalSnakeCase } from './utils/converters';
+import { Communication, CommunicationInfo } from './endpoints/communications';
+import { MessageInfo } from './endpoints/messages';
+import { TextInfo } from './endpoints/texts';
+import { ProcedureInfo } from './endpoints/procedures';
 
 
 export type APIGetOneInstance = <T extends Record<string, any>>({ id, path, mpQuery, config }: APIGetParameter & { id: number; }) => Promise<T | undefined | { error: ErrorDetails; }>;
@@ -9,6 +13,15 @@ export type APICreateOneInstance = <T extends Record<string, any>>({ path, mpQue
 export type APICreateManyInstance = <T extends Record<string, any>>({ path, mpQuery, data, config }: APICreateManyParameter) => Promise<T[] | { error: ErrorDetails; }>;
 export type APICreateFileInstance = <T extends Record<string, any>>({ path, mpQuery, data, config }: APICreateFileParameter) => Promise<T | { error: ErrorDetails; }>;
 export type APIUpdateInstance = <T extends Record<string, any>>({ path, mpQuery, data, config }: APIUpdateParameter) => Promise<T[] | { error: ErrorDetails; }>;
+
+// Communications API types
+export type APISendCommunicationInstance = (data: CommunicationInfo, config?: AxiosRequestConfig) => Promise<Communication | { error: ErrorDetails; }>;
+export type APISendMessageInstance = (data: MessageInfo, config?: AxiosRequestConfig) => Promise<Communication | { error: ErrorDetails; }>;
+export type APISendTextInstance = (data: TextInfo, config?: AxiosRequestConfig) => Promise<Communication | { error: ErrorDetails; }>;
+
+// Procedures API types
+export type APIGetProceduresInstance = (search?: string, config?: AxiosRequestConfig) => Promise<ProcedureInfo[] | { error: ErrorDetails; }>;
+export type APIExecuteProcedureInstance = <T = Record<string, any>>(procedureName: string, input?: Record<string, any>, config?: AxiosRequestConfig) => Promise<T[][] | { error: ErrorDetails; }>;
 
 
 export interface MPApiBase {
@@ -23,6 +36,13 @@ export interface MPApiBase {
   post: AxiosInstance['post'];
   put: AxiosInstance['put'];
   getError: (error: AxiosError) => ErrorDetails;
+  // Communications API
+  sendCommunication: APISendCommunicationInstance;
+  sendMessage: APISendMessageInstance;
+  sendText: APISendTextInstance;
+  // Procedures API
+  getProcedures: APIGetProceduresInstance;
+  executeProcedure: APIExecuteProcedureInstance;
 }
 
 export interface ErrorDetails {
@@ -226,6 +246,65 @@ export const createApiBase = ({ auth }: { auth: { username: string; password: st
     };
   };
 
+  // Communications API: POST /communications
+  const sendCommunication: APISendCommunicationInstance = async (data, config) => {
+    try {
+      const payload = convertToPascalCase(data);
+      const res = await post<Communication>('/communications', payload, config);
+      return convertFromPascalCase<Communication>(res.data);
+    } catch (err) {
+      return { error: getError(err as AxiosError) };
+    }
+  };
+
+  // Messages API: POST /messages
+  const sendMessage: APISendMessageInstance = async (data, config) => {
+    try {
+      const payload = convertToPascalCase(data);
+      const res = await post<Communication>('/messages', payload, config);
+      return convertFromPascalCase<Communication>(res.data);
+    } catch (err) {
+      return { error: getError(err as AxiosError) };
+    }
+  };
+
+  // Texts API: POST /texts
+  const sendText: APISendTextInstance = async (data, config) => {
+    try {
+      const payload = convertToPascalCase(data);
+      const res = await post<Communication>('/texts', payload, config);
+      return convertFromPascalCase<Communication>(res.data);
+    } catch (err) {
+      return { error: getError(err as AxiosError) };
+    }
+  };
+
+  // Procedures API: GET /procs
+  const getProcedures: APIGetProceduresInstance = async (search, config) => {
+    try {
+      const url = search ? `/procs?$search=${encodeURIComponent(search)}` : '/procs';
+      const res = await get<ProcedureInfo[]>(url, config);
+      return res.data.map(proc => convertFromPascalCase<ProcedureInfo>(proc));
+    } catch (err) {
+      return { error: getError(err as AxiosError) };
+    }
+  };
+
+  // Procedures API: POST /procs/{procedure}
+  const executeProcedure: APIExecuteProcedureInstance = async <T = Record<string, any>>(
+    procedureName: string,
+    input?: Record<string, any>,
+    config?: AxiosRequestConfig
+  ) => {
+    try {
+      const url = `/procs/${encodeURIComponent(procedureName)}`;
+      const res = await post<T[][]>(url, input, config);
+      return res.data;
+    } catch (err) {
+      return { error: getError(err as AxiosError) };
+    }
+  };
+
   return {
     get,
     put,
@@ -237,7 +316,12 @@ export const createApiBase = ({ auth }: { auth: { username: string; password: st
     updateMany,
     createFile,
     updateFile,
-    getError
+    getError,
+    sendCommunication,
+    sendMessage,
+    sendText,
+    getProcedures,
+    executeProcedure,
   };
 };
 

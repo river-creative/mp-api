@@ -58,7 +58,6 @@ export interface ContactRecord {
 }
 
 export interface Contact {
-  planningCenterID: number;
     contactID: number;
     company: boolean;
     companyName: string | null;
