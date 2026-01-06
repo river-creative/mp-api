@@ -54,6 +54,7 @@ export type EventRecord = {
     Allow_Email: boolean;
     Show_Building_Room_Info: boolean;
     Convert_Default_Contacts: boolean;
+    Online_Attendance: boolean;
 }
 
 export type Event = {
@@ -112,5 +113,6 @@ export type Event = {
     allowEmail: boolean;
     showBuildingRoomInfo: boolean;
     convertDefaultContacts: boolean;
+    onlineAttendance: boolean;
 }
 
