@@ -17,6 +17,7 @@ import { ParticipationDetails, ParticipationDetailsRecord } from './tables/parti
 import { ContactAttribute, ContactAttributeRecord, ContactWithAttribute } from './tables/contact-attributes';
 import { FormResponse, FormResponseRecord } from './tables/form-responses';
 import { FormResponseAnswer, FormResponseAnswerRecord } from './tables/from-response-answers';
+import { FormField, FormFieldRecord } from './tables/form-fields';
 import { ContactEmailAddress, ContactEmailAddressRecord, ContactWithEmailAddress, ContactWithEmailAddresses } from './tables/contact-email-addresses';
 import { AttachedFile } from './tables/files';
 
@@ -63,6 +64,10 @@ export type CreateFormResponsePayload = WithRequired<
 export type CreateFormResponseAnswerPayload = WithRequired<
   Omit<Partial<FormResponseAnswer>, 'formResponseAnswerID'>,
   'formFieldID' | 'formResponseID'
+>;
+export type CreateFormFieldPayload = WithRequired<
+  Omit<Partial<FormField>, 'formFieldID'>,
+  'formID' | 'fieldLabel' | 'fieldOrder' | 'fieldTypeID' | 'required'
 >;
 export type CreateContactEmailAddressPayload = WithRequired<
   Omit<Partial<ContactEmailAddress>, 'emailAddressID'>,
@@ -162,6 +167,10 @@ export type MPInstance = {
     id: number,
     mpQuery?: MPGetQuery
   ): Promise<FormResponse | undefined | { error: ErrorDetails; }>;
+  getFormField(
+    id: number,
+    mpQuery?: MPGetQuery
+  ): Promise<FormField | undefined | { error: ErrorDetails; }>;
 
   getContacts(
     mpQuery: AtLeastOne<MPGetQuery>
@@ -205,6 +214,9 @@ export type MPInstance = {
   getParticipationDetails(
     mpQuery: AtLeastOne<MPGetQuery>
   ): Promise<ParticipationDetails[] | { error: ErrorDetails; }>;
+  getFormFields(
+    mpQuery: AtLeastOne<MPGetQuery>
+  ): Promise<FormField[] | { error: ErrorDetails; }>;
 
   createContact(
     data: CreateContactPayload,
@@ -254,6 +266,14 @@ export type MPInstance = {
     data: CreateParticipationDetailsPayload[],
     mpQuery?: MPCreateQuery
   ): Promise<ParticipationDetails[] | { error: ErrorDetails; }>;
+  createFormField(
+    data: CreateFormFieldPayload,
+    mpQuery?: MPCreateQuery
+  ): Promise<FormField | { error: ErrorDetails; }>;
+  createFormFields(
+    data: CreateFormFieldPayload[],
+    mpQuery?: MPCreateQuery
+  ): Promise<FormField[] | { error: ErrorDetails; }>;
 
   updateContacts(
     contacts: WithRequired<Partial<Contact>, 'contactID'>[],
@@ -279,6 +299,10 @@ export type MPInstance = {
     details: WithRequired<Partial<ParticipationDetails>, 'participationDetailID'>[],
     mpQuery?: MPUpdateQuery
   ): Promise<ParticipationDetails[] | { error: ErrorDetails; }>;
+  updateFormFields(
+    fields: WithRequired<Partial<FormField>, 'formFieldID'>[],
+    mpQuery?: MPUpdateQuery
+  ): Promise<FormField[] | { error: ErrorDetails; }>;
 
   getFiles(table: string, recordId: number, mpQuery?: MPGetQuery)
     : Promise<AttachedFile[] | { error: ErrorDetails; }>;
@@ -404,6 +428,11 @@ export const createMPInstance = ({ auth }: { auth: { username: string; password:
         { path: `/tables/form_responses`, id, mpQuery }
       );
     },
+    async getFormField(id, mpQuery = {}) {
+      return getOne<FormField>(
+        { path: `/tables/form_fields`, id, mpQuery }
+      );
+    },
     async getContacts(mpQuery) {
       return getMany<Contact>(
         { path: `/tables/contacts`, mpQuery }
@@ -483,6 +512,11 @@ export const createMPInstance = ({ auth }: { auth: { username: string; password:
         { path: `/tables/participation_details`, mpQuery }
       );
     },
+    async getFormFields(mpQuery) {
+      return getMany<FormField>(
+        { path: `/tables/form_fields`, mpQuery }
+      );
+    },
 
     async createContact(data, mpQuery = {}) {
       return createOne<Contact>(
@@ -544,6 +578,16 @@ export const createMPInstance = ({ auth }: { auth: { username: string; password:
         { path: `/tables/participation_details`, mpQuery, data }
       );
     },
+    async createFormField(data, mpQuery) {
+      return createOne<FormField>(
+        { path: `/tables/form_fields`, mpQuery, data }
+      );
+    },
+    async createFormFields(data, mpQuery) {
+      return createMany<FormField>(
+        { path: `/tables/form_fields`, mpQuery, data }
+      );
+    },
     async updateContacts(data, mpQuery) {
       return updateMany<Contact>(
         { path: `/tables/contacts`, mpQuery, data }
@@ -572,6 +616,11 @@ export const createMPInstance = ({ auth }: { auth: { username: string; password:
     async updateParticipationDetails(data, mpQuery) {
       return updateMany<ParticipationDetails>(
         { path: `/tables/participation_details`, mpQuery, data }
+      );
+    },
+    async updateFormFields(data, mpQuery) {
+      return updateMany<FormField>(
+        { path: `/tables/form_fields`, mpQuery, data }
       );
     },
 
@@ -615,6 +664,7 @@ export {
   Address,
   FormResponse,
   FormResponseAnswer,
+  FormField,
   ContactAttribute,
   ContactWithAttribute,
   ContactEmailAddress,
