@@ -821,6 +821,7 @@ Event_Participants,Attendee_Message_Sent,bit,NULL,NULL,NO,,NULL,NULL,((0))
 Event_Participants,Attending_Online,bit,NULL,NULL,NO,,NULL,NULL,((0))
 Event_Participants,Call_Parents,bit,NULL,NULL,YES,,NULL,NULL,NULL
 Event_Participants,Check-in_Station,nvarchar,NULL,50,YES,,NULL,NULL,NULL
+Event_Participants,Data,nvarchar,NULL,4000,YES,,NULL,NULL,NULL
 Event_Participants,Domain_ID,int,NULL,NULL,NO,,dp_Domains,Domain_ID,NULL
 Event_Participants,Event_ID,int,NULL,NULL,NO,,Events,Event_ID,NULL
 Event_Participants,Event_Participant_ID,int,NULL,NULL,NO,YES,NULL,NULL,NULL
@@ -1132,6 +1133,7 @@ Group_Participants,_Show_Mobile_Phone,bit,NULL,NULL,NO,,NULL,NULL,((0))
 Group_Participants,_Show_Photo,bit,NULL,NULL,NO,,NULL,NULL,((1))
 Group_Participants,_Third_Attendance,datetime,NULL,NULL,YES,,NULL,NULL,NULL
 Group_Participants,Auto_Promote,bit,NULL,NULL,NO,,NULL,NULL,((1))
+Group_Participants,Data,nvarchar,NULL,4000,YES,,NULL,NULL,NULL
 Group_Participants,Domain_ID,int,NULL,NULL,NO,,dp_Domains,Domain_ID,NULL
 Group_Participants,Email_Opt_Out,bit,NULL,NULL,NO,,NULL,NULL,((0))
 Group_Participants,Employee_Role,bit,NULL,NULL,NO,,NULL,NULL,((0))
