@@ -112,9 +112,11 @@ export type MPInstance = {
   get: AxiosInstance['get'];
   put: AxiosInstance['put'];
   post: AxiosInstance['post'];
+  del: AxiosInstance['delete'];
   createOne: MPApiBase['createOne'];
   createMany: MPApiBase['createMany'];
   updateMany: MPApiBase['updateMany'];
+  deleteMany: MPApiBase['deleteMany'];
   getOne: MPApiBase['getOne'];
   getMany: MPApiBase['getMany'];
   createFile: MPApiBase['createFile'];
@@ -319,6 +321,10 @@ export type MPInstance = {
     details: WithRequired<Partial<ParticipationDetails>, 'participationDetailID'>[],
     mpQuery?: MPUpdateQuery
   ): Promise<ParticipationDetails[] | { error: ErrorDetails; }>;
+  deleteParticipationDetails(
+    ids: number[],
+    mpQuery?: MPCreateQuery
+  ): Promise<ParticipationDetails[] | { error: ErrorDetails; }>;
   updateFormFields(
     fields: WithRequired<Partial<FormField>, 'formFieldID'>[],
     mpQuery?: MPUpdateQuery
@@ -365,8 +371,8 @@ export type MPInstance = {
 export const createMPInstance = ({ auth }: { auth: { username: string; password: string; }; }): MPInstance => {
 
   const {
-    getOne, getMany, createOne, createMany, updateMany, createFile, updateFile,
-    get, post, put,
+    getOne, getMany, createOne, createMany, updateMany, deleteMany, createFile, updateFile,
+    get, post, put, del,
     sendCommunication, sendMessage, sendText, getProcedures, executeProcedure
   } = createApiBase({ auth });
 
@@ -374,11 +380,13 @@ export const createMPInstance = ({ auth }: { auth: { username: string; password:
     get,
     post,
     put,
+    del,
     getOne,
     getMany,
     createOne,
     createMany,
     updateMany,
+    deleteMany,
     createFile,
     updateFile,
     async getContact(id, mpQuery = {}) {
@@ -660,6 +668,11 @@ export const createMPInstance = ({ auth }: { auth: { username: string; password:
     async updateParticipationDetails(data, mpQuery) {
       return updateMany<ParticipationDetails>(
         { path: `/tables/participation_details`, mpQuery, data }
+      );
+    },
+    async deleteParticipationDetails(ids, mpQuery) {
+      return deleteMany<ParticipationDetails>(
+        { path: `/tables/participation_details`, ids, mpQuery }
       );
     },
     async updateFormFields(data, mpQuery) {

@@ -13,6 +13,7 @@ export type APICreateOneInstance = <T extends Record<string, any>>({ path, mpQue
 export type APICreateManyInstance = <T extends Record<string, any>>({ path, mpQuery, data, config }: APICreateManyParameter) => Promise<T[] | { error: ErrorDetails; }>;
 export type APICreateFileInstance = <T extends Record<string, any>>({ path, mpQuery, data, config }: APICreateFileParameter) => Promise<T | { error: ErrorDetails; }>;
 export type APIUpdateInstance = <T extends Record<string, any>>({ path, mpQuery, data, config }: APIUpdateParameter) => Promise<T[] | { error: ErrorDetails; }>;
+export type APIDeleteInstance = <T extends Record<string, any>>({ path, ids, mpQuery, config }: APIDeleteParameter) => Promise<T[] | { error: ErrorDetails; }>;
 
 // Communications API types
 export type APISendCommunicationInstance = (data: CommunicationInfo, config?: AxiosRequestConfig) => Promise<Communication | { error: ErrorDetails; }>;
@@ -30,11 +31,13 @@ export interface MPApiBase {
   createOne: APICreateOneInstance;
   createMany: APICreateManyInstance;
   updateMany: APIUpdateInstance;
+  deleteMany: APIDeleteInstance;
   createFile: APICreateFileInstance;
   updateFile: APICreateFileInstance;
   get: AxiosInstance['get'];
   post: AxiosInstance['post'];
   put: AxiosInstance['put'];
+  del: AxiosInstance['delete'];
   getError: (error: AxiosError) => ErrorDetails;
   // Communications API
   sendCommunication: APISendCommunicationInstance;
@@ -138,6 +141,18 @@ export const createApiBase = ({ auth }: { auth: { username: string; password: st
       },
     });
 
+  const del = async <T = any, R = AxiosResponse<T, any>>(
+    url: string,
+    config?: AxiosRequestConfig
+  ) =>
+    api.delete<T, R>(url, {
+      ...config,
+      headers: {
+        ...config?.headers,
+        Authorization: `Bearer ${await getToken()}`,
+      },
+    });
+
   const getOne: APIGetOneInstance = async <T extends Record<string, any>>({ id, path, mpQuery, config }: APIGetParameter & { id: number; }) => {
     try {
       const url = `${path}/${id}` + stringifyURLParams(mpQuery);
@@ -196,6 +211,19 @@ export const createApiBase = ({ auth }: { auth: { username: string; password: st
     const url = path + query;
     try {
       const res = await put(url, data, config);
+      return res.data.map(record => convertToCamelCase<T>(record));
+    }
+    catch (err) {
+      return { error: getError(err) };
+    }
+  };
+
+  // MP deletes by primary key via the $IDs query option (DELETE /tables/{table}?$IDs=1,2,3)
+  // and returns the deleted records. The IDs key is used verbatim, so its casing is preserved.
+  const deleteMany: APIDeleteInstance = async <T extends Record<string, any>>({ path, ids, mpQuery, config }: APIDeleteParameter) => {
+    const url = path + stringifyURLParams({ ...mpQuery, IDs: ids.join(',') });
+    try {
+      const res = await del<T[]>(url, config);
       return res.data.map(record => convertToCamelCase<T>(record));
     }
     catch (err) {
@@ -309,11 +337,13 @@ export const createApiBase = ({ auth }: { auth: { username: string; password: st
     get,
     put,
     post,
+    del,
     getOne,
     getMany,
     createOne,
     createMany,
     updateMany,
+    deleteMany,
     createFile,
     updateFile,
     getError,
@@ -396,6 +426,12 @@ interface APIUpdateParameter {
   path: string;
   data: Record<string, any>[],
   mpQuery?: MPUpdateQuery;
+  config?: AxiosRequestConfig;
+};
+interface APIDeleteParameter {
+  path: string;
+  ids: number[];
+  mpQuery?: MPCreateQuery;
   config?: AxiosRequestConfig;
 };
 

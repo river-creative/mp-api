@@ -99,4 +99,38 @@ describe('MP Instance', function () {
             }
         }
     });
+    it('should create then delete a participation detail (roundtrip)', async function () {
+        // Live delete is destructive, so this test only operates on a record it
+        // creates itself. It needs a disposable Event_Participant_ID to attach to;
+        // skip cleanly when one is not configured so CI without setup is unaffected.
+        const epId = Number(process.env.MP_TEST_EVENT_PARTICIPANT_ID);
+        const itemId = Number(process.env.MP_TEST_PARTICIPATION_ITEM_ID) || 1;
+        if (!epId) {
+            this.skip();
+        }
+
+        const created = await mp.createParticipationDetail({
+            eventParticipantID: epId,
+            participationItemID: itemId,
+            numericValue: 0,
+            notes: `mp-js-api delete roundtrip ${v4()}`,
+        });
+        if ('error' in created) {
+            assert.fail(`create failed: ${JSON.stringify(created.error, null, 2)}`);
+        }
+        assert(created.participationDetailID > 0, 'created record has an id');
+
+        const deleted = await mp.deleteParticipationDetails([created.participationDetailID]);
+        if ('error' in deleted) {
+            assert.fail(`delete failed: ${JSON.stringify(deleted.error, null, 2)}`);
+        }
+        assert(deleted instanceof Array, 'delete returns an array of deleted records');
+        assert(
+            deleted.some(r => r.participationDetailID === created.participationDetailID),
+            'the deleted record is returned in the response'
+        );
+
+        const after = await mp.getParticipationDetail(created.participationDetailID);
+        assert(after === undefined, 'record no longer exists after delete');
+    });
 });
