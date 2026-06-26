@@ -35,6 +35,7 @@ export interface ContactRecord {
     Bulk_Email_Opt_Out: boolean;
     Email_Unlisted: boolean;
     Do_Not_Text: boolean;
+    Texting_Opt_In_Type_ID: number; // FK -> Texting_Opt_In_Types (1 Opted Out, 2 No Response, 3 Single Opt-In, 4 Double Opt-In); NOT NULL, DB default 2
     Mobile_Phone_Unlisted: boolean;
     Remove_From_Directory: boolean;
     User_Account: number | null;
@@ -92,6 +93,7 @@ export interface Contact {
     bulkEmailOptOut: boolean;
     emailUnlisted: boolean;
     doNotText: boolean;
+    textingOptInTypeID: number; // FK -> Texting_Opt_In_Types (1 Opted Out, 2 No Response, 3 Single Opt-In, 4 Double Opt-In); NOT NULL, DB default 2
     mobilePhoneUnlisted: boolean;
     removeFromDirectory: boolean;
     userAccount: number | null;

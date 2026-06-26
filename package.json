@@ -1,6 +1,6 @@
 {
   "name": "mp-js-api",
-  "version": "0.0.37",
+  "version": "0.0.38",
   "description": "Node MinistryPlatform API",
   "main": "dist/index.js",
   "scripts": {
