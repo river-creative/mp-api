@@ -368,13 +368,19 @@ export type MPInstance = {
 };
 
 
-export const createMPInstance = ({ auth }: { auth: { username: string; password: string; }; }): MPInstance => {
+export const createMPInstance = ({ auth, messaging, timeout }: {
+  auth: { username: string; password: string; };
+  /** Resilience for MP's non-concurrency-safe messaging endpoints. See createApiBase. */
+  messaging?: { concurrency?: number; retries?: number; retryBaseDelayMs?: number; };
+  /** Per-request timeout (ms) for every MP call. Default 30000. */
+  timeout?: number;
+}): MPInstance => {
 
   const {
     getOne, getMany, createOne, createMany, updateMany, deleteMany, createFile, updateFile,
     get, post, put, del,
     sendCommunication, sendMessage, sendText, getProcedures, executeProcedure
-  } = createApiBase({ auth });
+  } = createApiBase({ auth, messaging, timeout });
 
   return {
     get,

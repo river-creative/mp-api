@@ -60,7 +60,44 @@ export interface ErrorDetails {
 }
 
 
-const createTokenGetter = (auth: { username: string; password: string; }) => {
+/**
+ * Minimal concurrency limiter — runs at most `concurrency` tasks at once and queues the rest.
+ * Kept dependency-free (no p-limit) to avoid adding a runtime dependency.
+ */
+function createLimiter(concurrency: number) {
+  let active = 0;
+  const queue: Array<() => void> = [];
+  const pump = () => {
+    while (active < concurrency && queue.length) {
+      active++;
+      queue.shift()!();
+    }
+  };
+  return <T>(task: () => Promise<T>): Promise<T> =>
+    new Promise<T>((resolve, reject) => {
+      queue.push(() =>
+        task().then(resolve, reject).finally(() => {
+          active--;
+          pump();
+        })
+      );
+      pump();
+    });
+}
+
+/**
+ * True when an error is MP's transient SQL Server deadlock on a write — SQL chose this request as
+ * the deadlock victim and instructs "Rerun the transaction." Only these are retried.
+ */
+function isDeadlockError(err: unknown): boolean {
+  const e = err as AxiosError | undefined;
+  const reason = String((e?.response?.data as { Message?: string; } | undefined)?.Message ?? e?.message ?? '');
+  return /deadlock|rerun the transaction/i.test(reason);
+}
+
+const sleep = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms));
+
+const createTokenGetter = (auth: { username: string; password: string; }, timeout?: number) => {
   let token: AccessToken | undefined;
 
   return async () => {
@@ -72,7 +109,7 @@ const createTokenGetter = (auth: { username: string; password: string; }) => {
           grant_type: 'client_credentials',
           scope: 'http://www.thinkministry.com/dataplatform/scopes/all',
         }).toString(),
-        { auth }
+        { auth, timeout }
       );
       const [, payload] = tokenRes.data.access_token.split('.');
       try {
@@ -93,15 +130,46 @@ const createTokenGetter = (auth: { username: string; password: string; }) => {
   };
 };
 
-export const createApiBase = ({ auth }: { auth: { username: string; password: string; }; }): MPApiBase => {
+export const createApiBase = ({ auth, messaging, timeout = 30000 }: {
+  auth: { username: string; password: string; };
+  /**
+   * Resilience for MP's non-concurrency-safe messaging endpoints (/communications, /messages,
+   * /texts). Defaults: concurrency 1 (fully serialized), 4 deadlock retries, 150ms base backoff.
+   */
+  messaging?: { concurrency?: number; retries?: number; retryBaseDelayMs?: number; };
+  /** Per-request timeout (ms) applied to every MP call and the token fetch. Default 30000. */
+  timeout?: number;
+}): MPApiBase => {
   /**
    * Gets MP oauth token.
    * @returns token
    */
-  const getToken = createTokenGetter(auth);
+  const getToken = createTokenGetter(auth, timeout);
   const api = axios.create({
     baseURL: 'https://mp.revival.com/ministryplatformapi',
+    timeout,
   });
+
+  // MP's /communications, /messages and /texts endpoints are NOT concurrency-safe: overlapping
+  // requests deadlock in SQL Server (HTTP 500 "Transaction … was deadlocked on lock resources …
+  // chosen as the deadlock victim. Rerun the transaction."). We serialize these writes through a
+  // limiter (default concurrency 1) so they cannot deadlock each other, and retry the transient
+  // deadlock with exponential backoff + jitter to survive deadlocks against other MP consumers.
+  const messagingRetries = messaging?.retries ?? 4;
+  const messagingRetryBaseMs = messaging?.retryBaseDelayMs ?? 150;
+  const messagingLimit = createLimiter(messaging?.concurrency ?? 1);
+  const sendResilient = <T>(run: () => Promise<T>): Promise<T> =>
+    messagingLimit(async () => {
+      for (let attempt = 0; ; attempt++) {
+        try {
+          return await run();
+        } catch (err) {
+          if (attempt >= messagingRetries || !isDeadlockError(err)) throw err;
+          const backoff = messagingRetryBaseMs * 2 ** attempt;
+          await sleep(backoff + Math.floor(Math.random() * messagingRetryBaseMs));
+        }
+      }
+    });
 
   const get = async <T = any, R = AxiosResponse<T, any>>(
     url: string,
@@ -275,10 +343,11 @@ export const createApiBase = ({ auth }: { auth: { username: string; password: st
   };
 
   // Communications API: POST /communications
+  // Serialized + deadlock-retried via sendResilient (endpoint is not concurrency-safe).
   const sendCommunication: APISendCommunicationInstance = async (data, config) => {
     try {
       const payload = convertToPascalCase(data);
-      const res = await post<Communication>('/communications', payload, config);
+      const res = await sendResilient(() => post<Communication>('/communications', payload, config));
       return convertFromPascalCase<Communication>(res.data);
     } catch (err) {
       return { error: getError(err as AxiosError) };
@@ -289,7 +358,7 @@ export const createApiBase = ({ auth }: { auth: { username: string; password: st
   const sendMessage: APISendMessageInstance = async (data, config) => {
     try {
       const payload = convertToPascalCase(data);
-      const res = await post<Communication>('/messages', payload, config);
+      const res = await sendResilient(() => post<Communication>('/messages', payload, config));
       return convertFromPascalCase<Communication>(res.data);
     } catch (err) {
       return { error: getError(err as AxiosError) };
@@ -300,7 +369,7 @@ export const createApiBase = ({ auth }: { auth: { username: string; password: st
   const sendText: APISendTextInstance = async (data, config) => {
     try {
       const payload = convertToPascalCase(data);
-      const res = await post<Communication>('/texts', payload, config);
+      const res = await sendResilient(() => post<Communication>('/texts', payload, config));
       return convertFromPascalCase<Communication>(res.data);
     } catch (err) {
       return { error: getError(err as AxiosError) };
