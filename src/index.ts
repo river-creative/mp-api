@@ -260,6 +260,10 @@ export type MPInstance = {
     data: CreateContactAttributePayload,
     mpQuery?: MPCreateQuery
   ): Promise<ContactAttribute | { error: ErrorDetails; }>;
+  createContactAttributes(
+    data: CreateContactAttributePayload[],
+    mpQuery?: MPCreateQuery
+  ): Promise<ContactAttribute[] | { error: ErrorDetails; }>;
   createFormResponse(
     data: CreateFormResponsePayload,
     mpQuery?: MPCreateQuery
@@ -333,6 +337,14 @@ export type MPInstance = {
     relationships: WithRequired<Partial<ContactRelationship>, 'contactRelationshipID'>[],
     mpQuery?: MPUpdateQuery
   ): Promise<ContactRelationship[] | { error: ErrorDetails; }>;
+  /**
+   * Contact_Attributes is a ReadWriteAssign table — it grants no Delete permission, so a stale
+   * attribute is retired by setting its End_Date via this method, never by deleting the row.
+   */
+  updateContactAttributes(
+    attributes: WithRequired<Partial<ContactAttribute>, 'contactAttributeID'>[],
+    mpQuery?: MPUpdateQuery
+  ): Promise<ContactAttribute[] | { error: ErrorDetails; }>;
 
   getFiles(table: string, recordId: number, mpQuery?: MPGetQuery)
     : Promise<AttachedFile[] | { error: ErrorDetails; }>;
@@ -601,6 +613,11 @@ export const createMPInstance = ({ auth, messaging, timeout }: {
         { path: `/tables/contact_attributes`, mpQuery, data }
       );
     },
+    async createContactAttributes(data, mpQuery) {
+      return createMany<ContactAttribute>(
+        { path: `/tables/contact_attributes`, mpQuery, data }
+      );
+    },
     async createFormResponse(data: CreateFormResponsePayload, mpQuery) {
       return createOne<FormResponse>(
         { path: `/tables/form_responses`, mpQuery, data }
@@ -689,6 +706,11 @@ export const createMPInstance = ({ auth, messaging, timeout }: {
     async updateContactRelationships(data, mpQuery) {
       return updateMany<ContactRelationship>(
         { path: `/tables/contact_relationships`, mpQuery, data }
+      );
+    },
+    async updateContactAttributes(data, mpQuery) {
+      return updateMany<ContactAttribute>(
+        { path: `/tables/contact_attributes`, mpQuery, data }
       );
     },
 
