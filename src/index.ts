@@ -317,6 +317,10 @@ export type MPInstance = {
     participants: WithRequired<Partial<GroupParticipant>, 'groupParticipantID'>[],
     mpQuery?: MPUpdateQuery
   ): Promise<GroupParticipant[] | { error: ErrorDetails; }>;
+  updateFormResponses(
+    responses: WithRequired<Partial<FormResponse>, 'formResponseID'>[],
+    mpQuery?: MPUpdateQuery
+  ): Promise<FormResponse[] | { error: ErrorDetails; }>;
   updateFormResponseAnswers(
     participants: WithRequired<Partial<FormResponseAnswer>, 'formResponseAnswerID'>[],
     mpQuery?: MPUpdateQuery
@@ -329,6 +333,10 @@ export type MPInstance = {
     ids: number[],
     mpQuery?: MPCreateQuery
   ): Promise<ParticipationDetails[] | { error: ErrorDetails; }>;
+  deleteEventParticipants(
+    ids: number[],
+    mpQuery?: MPCreateQuery
+  ): Promise<EventParticipant[] | { error: ErrorDetails; }>;
   updateFormFields(
     fields: WithRequired<Partial<FormField>, 'formFieldID'>[],
     mpQuery?: MPUpdateQuery
@@ -683,6 +691,11 @@ export const createMPInstance = ({ auth, messaging, timeout }: {
         { path: `/tables/group_participants`, mpQuery, data }
       );
     },
+    async updateFormResponses(data, mpQuery) {
+      return updateMany<FormResponse>(
+        { path: `/tables/form_responses`, mpQuery, data }
+      );
+    },
     async updateFormResponseAnswers(data, mpQuery) {
       return updateMany<FormResponseAnswer>(
         { path: `/tables/form_response_answers`, mpQuery, data }
@@ -696,6 +709,11 @@ export const createMPInstance = ({ auth, messaging, timeout }: {
     async deleteParticipationDetails(ids, mpQuery) {
       return deleteMany<ParticipationDetails>(
         { path: `/tables/participation_details`, ids, mpQuery }
+      );
+    },
+    async deleteEventParticipants(ids, mpQuery) {
+      return deleteMany<EventParticipant>(
+        { path: `/tables/event_participants`, ids, mpQuery }
       );
     },
     async updateFormFields(data, mpQuery) {
