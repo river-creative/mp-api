@@ -26,6 +26,8 @@ export interface GroupParticipantRecord {
   _Show_Mobile_Phone: boolean;
   _Show_Address: boolean;
   _Show_Photo: boolean;
+  /** Structured JSON payload for the membership. `Notes` stays the human-readable note. */
+  Data: null | string;
 }
 
 export interface GroupParticipant {
@@ -56,4 +58,6 @@ export interface GroupParticipant {
   readonly _showMobilePhone: boolean;
   readonly _showAddress: boolean;
   readonly _showPhoto: boolean;
+  /** Structured JSON payload for the membership. `notes` stays the human-readable note. */
+  data: null | string;
 }
