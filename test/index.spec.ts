@@ -154,4 +154,53 @@ describe('MP Instance', function () {
         assert(typeof file.FileId === 'number', 'FileId is present, in PascalCase');
         assert(typeof file.IsDefaultImage === 'boolean', 'IsDefaultImage is present, in PascalCase');
     });
+
+    it('should download a file by FileId, and by UniqueFileId', async function () {
+        // Closes the gap getFiles left: the client could describe a file but never fetch it, and
+        // dp_Files is not readable over the table API either, so its bytes were unreachable entirely.
+        const files = await mp.getFiles('contacts', 1);
+        if ('error' in files) {
+            assert.fail(`getFiles failed: ${JSON.stringify(files.error, null, 2)}`);
+        }
+        const image = files.find(f => f.IsDefaultImage && f.IsImage);
+        assert(image, 'contact 1 has a default image to download');
+
+        const byId = await mp.downloadFile(image.FileId);
+        if ('error' in byId) {
+            assert.fail(`downloadFile failed: ${JSON.stringify(byId.error, null, 2)}`);
+        }
+        assert(byId.bytes instanceof ArrayBuffer, 'bytes are a real ArrayBuffer, not a Node Buffer');
+        assert(byId.size > 0, 'the file has content');
+        assert.strictEqual(byId.size, byId.bytes.byteLength, 'size agrees with the bytes');
+        assert.strictEqual(byId.size, image.FileSize, 'every byte MP reported was received');
+
+        // The bytes open with a real image signature — the proof that nothing was mangled by the
+        // pooled-Buffer slice (Node hands axios a Buffer carved out of a shared slab, so handing over
+        // its `.buffer` would have yielded the slab, not the file).
+        //
+        // Not pinned to one format on purpose: MP's filenames lie. This record is called "DoNotEdit.jpg"
+        // and its bytes are a PNG — which is exactly why a caller must sniff rather than trust the name.
+        const head = [...new Uint8Array(byId.bytes, 0, 4)];
+        const signatures = [
+            [0xff, 0xd8, 0xff],                    // JPEG
+            [0x89, 0x50, 0x4e, 0x47],              // PNG
+            [0x47, 0x49, 0x46, 0x38]               // GIF
+        ];
+        assert(
+            signatures.some(sig => sig.every((byte, i) => head[i] === byte)),
+            `the bytes open with an image signature, got [${head}]`
+        );
+
+        // MP serves the same file from its GUID.
+        const byGuid = await mp.downloadFile(image.UniqueFileId);
+        if ('error' in byGuid) {
+            assert.fail(`downloadFile by UniqueFileId failed: ${JSON.stringify(byGuid.error, null, 2)}`);
+        }
+        assert.strictEqual(byGuid.size, byId.size, 'FileId and UniqueFileId fetch the same file');
+    });
+
+    it('should report an error for a file that does not exist, not throw', async function () {
+        const missing = await mp.downloadFile(999999999);
+        assert('error' in missing, 'a missing file comes back as an error result');
+    });
 });

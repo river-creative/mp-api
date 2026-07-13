@@ -20,7 +20,8 @@ import { FormResponseAnswer, FormResponseAnswerRecord } from './tables/from-resp
 import { FormField, FormFieldRecord } from './tables/form-fields';
 import { ContactRelationship, ContactRelationshipRecord } from './tables/contact-relationships';
 import { ContactEmailAddress, ContactEmailAddressRecord, ContactWithEmailAddress, ContactWithEmailAddresses } from './tables/contact-email-addresses';
-import { AttachedFile } from './tables/files';
+import { AttachedFile, DownloadedFile } from './tables/files';
+import { fileNameFromDisposition, toArrayBuffer } from './utils/files';
 
 
 export type WithRequired<T, K extends keyof T> = T & Required<Pick<T, K>>;
@@ -356,6 +357,12 @@ export type MPInstance = {
 
   getFiles(table: string, recordId: number, mpQuery?: MPGetQuery)
     : Promise<AttachedFile[] | { error: ErrorDetails; }>;
+  /**
+   * Download a file's content. Accepts either the numeric `FileId` or the `UniqueFileId` GUID — MP
+   * serves both from the same route.
+   */
+  downloadFile(file: number | string, config?: AxiosRequestConfig)
+    : Promise<DownloadedFile | { error: ErrorDetails; }>;
   uploadFile(table: string, recordId: number, data: FormData)
     : Promise<AttachedFile | { error: ErrorDetails; }>;
   updateFiles(table: string, fileId: number, data: WithRequired<Partial<AttachedFile>, 'FileId'>[])
@@ -750,6 +757,33 @@ export const createMPInstance = ({ auth, messaging, timeout }: {
         return { error: getError(err as AxiosError) };
       }
     },
+    /**
+     * Download a file's content.
+     *
+     * The counterpart to getFiles, which only ever described a file without being able to fetch it —
+     * leaving a file's bytes unreachable through this client. dp_Files is not readable over the table
+     * API either (MP denies access to it), so this route is the only way in.
+     *
+     * Takes the numeric FileId or the UniqueFileId GUID; MP serves both from the same route.
+     */
+    async downloadFile(file, config) {
+      try {
+        const res = await get<ArrayBuffer>(`/files/${file}`, { ...config, responseType: 'arraybuffer' });
+        const bytes = toArrayBuffer(res.data);
+
+        return {
+          bytes,
+          // What MP said — which is often application/octet-stream even for an image. Reported
+          // faithfully rather than guessed at; a caller that needs the true type should sniff the bytes.
+          contentType: String(res.headers['content-type'] ?? '') || 'application/octet-stream',
+          fileName: fileNameFromDisposition(res.headers['content-disposition']),
+          size: bytes.byteLength
+        };
+      }
+      catch (err) {
+        return { error: getError(err as AxiosError) };
+      }
+    },
     async uploadFile(table, recordId, data) {
       return createFile<AttachedFile>(
         { path: `/files/${table}/${recordId}`, data }
@@ -794,6 +828,7 @@ export {
   ContactRelationship,
   // What getFiles/uploadFile return — was declared but never exported, so callers could not name it.
   AttachedFile,
+  DownloadedFile,
 
   // Communications endpoint types
   Communication,
