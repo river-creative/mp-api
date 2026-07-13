@@ -286,12 +286,20 @@ export const createApiBase = ({ auth, messaging, timeout = 30000 }: {
     }
   };
 
-  // MP deletes by primary key via the $IDs query option (DELETE /tables/{table}?$IDs=1,2,3)
-  // and returns the deleted records. The IDs key is used verbatim, so its casing is preserved.
+  // MP batch-deletes via POST /tables/{table}/delete with a DeleteParameters body ({ Ids, Select?,
+  // UserId? }) and returns the deleted records. The DELETE /tables/{table} verb instead wants a
+  // repeated `?id=1&id=2` query (collectionFormat "multi") — NOT `?$IDs=1,2,3`, which MP ignores,
+  // matching no records and returning 200 with an empty array (a silent no-op). The POST form also
+  // avoids URL-length limits on large batches. Contract verified against the instance swagger
+  // (/swagger/docs/v1). Body keys are PascalCase and sent verbatim (no snake_case conversion).
   const deleteMany: APIDeleteInstance = async <T extends Record<string, any>>({ path, ids, mpQuery, config }: APIDeleteParameter) => {
-    const url = path + stringifyURLParams({ ...mpQuery, IDs: ids.join(',') });
+    const body = {
+      Ids: ids,
+      ...(mpQuery?.select && { Select: mpQuery.select }),
+      ...(mpQuery?.userId && { UserId: mpQuery.userId }),
+    };
     try {
-      const res = await del<T[]>(url, config);
+      const res = await post<T[]>(`${path}/delete`, body, config);
       return res.data.map(record => convertToCamelCase<T>(record));
     }
     catch (err) {
