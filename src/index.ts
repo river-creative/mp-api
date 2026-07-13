@@ -1,4 +1,4 @@
-import { AxiosInstance, AxiosRequestConfig } from 'axios';
+import { AxiosError, AxiosInstance, AxiosRequestConfig } from 'axios';
 import { createApiBase, MPApiBase, ErrorDetails, MPGetQuery, MPCreateQuery, MPUpdateQuery, DateTimeIsoString } from './api';
 import { convertToCamelCase, convertToSnakeCase, convertToPascalCase, convertFromPascalCase, escapeSql, stringifyURLParams } from './utils/converters';
 import { Contact, ContactRecord } from './tables/contacts';
@@ -398,7 +398,7 @@ export const createMPInstance = ({ auth, messaging, timeout }: {
 
   const {
     getOne, getMany, createOne, createMany, updateMany, deleteMany, createFile, updateFile,
-    get, post, put, del,
+    get, post, put, del, getError,
     sendCommunication, sendMessage, sendText, getProcedures, executeProcedure
   } = createApiBase({ auth, messaging, timeout });
 
@@ -732,10 +732,23 @@ export const createMPInstance = ({ auth, messaging, timeout }: {
       );
     },
 
-    async getFiles(table, recordId) {
-      return getMany<AttachedFile>(
-        { path: `/files/${table}/${recordId}`, mpQuery: {} }
-      );
+    /**
+     * List the files attached to a record.
+     *
+     * Deliberately NOT routed through getMany. That helper speaks the *table* convention — it POSTs to
+     * `path + '/get'` and camel-cases the reply — and neither applies here: the Files API is a plain
+     * `GET /files/{table}/{recordId}`, so getMany resolved to `POST /files/{table}/{id}/get` and MP
+     * answered 404 every time; and its reply is PascalCase, which is what AttachedFile declares, so
+     * camel-casing it would rename every field out from under the type.
+     */
+    async getFiles(table, recordId, mpQuery) {
+      try {
+        const res = await get<AttachedFile[]>(`/files/${table}/${recordId}` + stringifyURLParams(mpQuery));
+        return res.data;
+      }
+      catch (err) {
+        return { error: getError(err as AxiosError) };
+      }
     },
     async uploadFile(table, recordId, data) {
       return createFile<AttachedFile>(
@@ -779,6 +792,8 @@ export {
   ContactWithEmailAddress,
   ContactWithEmailAddresses,
   ContactRelationship,
+  // What getFiles/uploadFile return — was declared but never exported, so callers could not name it.
+  AttachedFile,
 
   // Communications endpoint types
   Communication,

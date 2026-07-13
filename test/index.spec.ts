@@ -1,6 +1,8 @@
 import { createMPInstance } from '../src/index';
 import * as dotenv from 'dotenv';
-import * as assert from 'assert';
+// Default import, not `* as assert`: the namespace form is not callable under TS, so every bare
+// `assert(...)` in this file failed to compile and the suite could not run at all. esModuleInterop is on.
+import assert from 'assert';
 import { v4 } from 'uuid';
 
 dotenv.config();
@@ -132,5 +134,24 @@ describe('MP Instance', function () {
 
         const after = await mp.getParticipationDetail(created.participationDetailID);
         assert(after === undefined, 'record no longer exists after delete');
+    });
+
+    it('should list the files attached to a record', async function () {
+        // Regression: getFiles used to delegate to getMany, which speaks the *table* convention — it
+        // POSTs to `path + '/get'` — so the call resolved to POST /files/contacts/1/get and MP answered
+        // 404 every single time. The Files API is a plain GET.
+        const files = await mp.getFiles('contacts', 1);
+        if ('error' in files) {
+            assert.fail(`getFiles failed: ${JSON.stringify(files.error, null, 2)}`);
+        }
+
+        assert(files instanceof Array, 'response is an array');
+        assert(files.length > 0, 'the record has attached files');
+
+        // The Files API answers in PascalCase, which is exactly what AttachedFile declares. getMany
+        // would have camel-cased the reply and renamed every field out from under the type.
+        const [file] = files;
+        assert(typeof file.FileId === 'number', 'FileId is present, in PascalCase');
+        assert(typeof file.IsDefaultImage === 'boolean', 'IsDefaultImage is present, in PascalCase');
     });
 });
