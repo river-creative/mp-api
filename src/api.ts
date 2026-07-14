@@ -1,6 +1,6 @@
 import axios, { AxiosError, AxiosInstance, AxiosRequestConfig, AxiosResponse } from 'axios';
 import { URLSearchParams } from 'url';
-import { convertToCamelCase, convertToSnakeCase, convertToPascalCase, convertFromPascalCase, escapeApostrophes, stringifyURLParams, toCapitalSnakeCase } from './utils/converters';
+import { convertToCamelCase, convertToSnakeCase, convertToPascalCase, convertFromPascalCase, stringifyURLParams, toQueryParameters, toCapitalSnakeCase } from './utils/converters';
 import { Communication, CommunicationInfo } from './endpoints/communications';
 import { MessageInfo } from './endpoints/messages';
 import { TextInfo } from './endpoints/texts';
@@ -234,8 +234,11 @@ export const createApiBase = ({ auth, messaging, timeout = 30000 }: {
 
   const getMany: APIGetMultipleInstance = async <T extends Record<string, any>>({ path, mpQuery, config }: APIGetParameter): Promise<T[] | { error: ErrorDetails; }> => {
     try {
-      const url = path + '/get'; //+ stringifyURLParams(mpQuery);
-      const data = mpQuery && escapeApostrophes(convertToSnakeCase<MPGetQuery>(mpQuery));
+      const url = path + '/get';
+      // MP's read body is its PascalCase `QueryParameters` model, NOT snake_cased columns — see
+      // toQueryParameters. Snake-casing it turned `orderBy` into `Order_By`, which MP silently
+      // ignored, so no read this client ever made was actually ordered.
+      const data = mpQuery && toQueryParameters(mpQuery);
       const res = await post<T[]>(url, data, config);
       return res.data.map(record => convertToCamelCase<T>(record));
     }
@@ -447,14 +450,20 @@ interface AccessToken {
   expiration: number;
 }
 
+// Every parameter MP's read endpoint accepts (swagger: the QueryParameters model). `having`, `userId`
+// and `globalFilterId` were missing here — and would have been silently dropped even if passed, since
+// the old snake_case conversion mangled every multi-word name.
 export type MPGetQuery = {
   select?: string;
   filter?: string;
   orderBy?: string;
   groupBy?: string;
+  having?: string;
   top?: number;
   skip?: number;
   distinct?: boolean;
+  userId?: number;
+  globalFilterId?: number;
 };
 
 export type MPCreateQuery = {

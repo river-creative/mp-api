@@ -1,12 +1,65 @@
+/**
+ * MP names its parameters two different ways, and neither is the camelCase this client speaks.
+ *
+ * A **read** (POST /tables/{table}/get) binds a `QueryParameters` body whose keys are PascalCase:
+ * `Select, Filter, OrderBy, GroupBy, Having, Top, Skip, Distinct, UserId, GlobalFilterId, Ids`.
+ * A **query-string** parameter ($select on a write, say) is camelCase — except `$orderby` and
+ * `$groupby`, which are lowercase. Both verified against the instance swagger (/swagger/docs/v1).
+ *
+ * MP does not reject a parameter it cannot bind — it *ignores* it. So a misspelled key is not an
+ * error, it is a silent no-op: an ordered read comes back in whatever order the database chose, and
+ * a cursor-pager built on that ordering skips records instead of failing. Both maps below exist to
+ * make that class of bug impossible; `toQueryParameters` additionally throws on a key MP has no name
+ * for, so a typo surfaces at the call rather than as quietly wrong data.
+ */
+const MP_URL_PARAMS: Record<string, string> = {
+  orderBy: 'orderby',
+  groupBy: 'groupby'
+};
+
+const MP_QUERY_PARAMETERS: Record<string, string> = {
+  ids: 'Ids',
+  select: 'Select',
+  filter: 'Filter',
+  orderBy: 'OrderBy',
+  groupBy: 'GroupBy',
+  having: 'Having',
+  top: 'Top',
+  skip: 'Skip',
+  distinct: 'Distinct',
+  userId: 'UserId',
+  globalFilterId: 'GlobalFilterId'
+};
+
 export function stringifyURLParams<T = any>(mpOptions: Record<string, T> = {}) {
   return escapeSql(Object.entries(mpOptions).reduce((acc, [key, value]) => {
-    if (!acc) {
-      acc += `?$${key}=${value}`;
-    } else {
-      acc += `&$${key}=${value}`;
-    }
+    const param = MP_URL_PARAMS[key] ?? key;
+    acc += `${acc ? '&' : '?'}$${param}=${value}`;
     return acc;
   }, ''));
+}
+
+/**
+ * A read query as MP's `QueryParameters` body — the shape POST /tables/{table}/get binds.
+ *
+ * This is why the generic snake_case converter (which write payloads correctly use, because MP's
+ * *columns* are snake_case) must never touch a read query: it turns `orderBy` into `Order_By`, which
+ * binds to nothing. Single-word keys — Select, Filter, Top — survived that converter by coincidence,
+ * which is precisely why only the multi-word ones (OrderBy, GroupBy, Having, UserId, GlobalFilterId)
+ * appeared to "not work".
+ */
+export function toQueryParameters<T extends Record<string, any>>(mpQuery: T): Record<string, unknown> {
+  return Object.entries(mpQuery).reduce<Record<string, unknown>>((body, [key, value]) => {
+    const name = MP_QUERY_PARAMETERS[key];
+    if (!name)
+      throw new Error(
+        `Unknown MP query parameter '${key}'. MP ignores what it cannot bind, so this would be a silent no-op. ` +
+        `Expected one of: ${Object.keys(MP_QUERY_PARAMETERS).join(', ')}.`
+      );
+
+    body[name] = typeof value === 'string' ? escapeApostrophe(value) : value;
+    return body;
+  }, {});
 }
 
 export function escapeSql(str: string) {
