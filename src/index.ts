@@ -367,6 +367,12 @@ export type MPInstance = {
     : Promise<AttachedFile | { error: ErrorDetails; }>;
   updateFiles(table: string, fileId: number, data: WithRequired<Partial<AttachedFile>, 'FileId'>[])
     : Promise<AttachedFile[] | { error: ErrorDetails; }>;
+  /**
+   * Delete a file. Accepts the numeric `FileId` or the `UniqueFileId` GUID — MP serves both from the
+   * same route.
+   */
+  deleteFile(file: number | string)
+    : Promise<AttachedFile | { error: ErrorDetails; }>;
 
   // Communications API
   sendCommunication(
@@ -794,6 +800,28 @@ export const createMPInstance = ({ auth, messaging, timeout }: {
         { path: `/files/${table}/${fileId}`, data }
       );
     },
+    /**
+     * Delete a file.
+     *
+     * NOT routed through deleteMany: that speaks the *table* convention (`POST {path}/delete` with an
+     * `Ids` body, camel-casing the reply), and the Files API is a plain `DELETE /files/{file}` whose
+     * reply is PascalCase — so deleteMany would have posted to a route that does not exist and then
+     * renamed every field of the answer out from under AttachedFile. The same reason getFiles cannot use
+     * getMany.
+     *
+     * Added because there was no way to remove a file through this client at all: callers had to mint
+     * their own OAuth token and drop to raw HTTP, which is exactly the sort of hand-rolling this library
+     * exists to stop.
+     */
+    async deleteFile(file) {
+      try {
+        const res = await del<AttachedFile>(`/files/${file}`);
+        return res.data;
+      }
+      catch (err) {
+        return { error: getError(err as AxiosError) };
+      }
+    },
 
     // Communications API
     sendCommunication,
@@ -805,6 +833,10 @@ export const createMPInstance = ({ auth, messaging, timeout }: {
     executeProcedure,
   };
 };
+
+// Value exports (the block below re-exports TYPES only).
+export { fileUrl } from './tables/files';
+export { MP_BASE_URL } from './api';
 
 export {
   // Tables

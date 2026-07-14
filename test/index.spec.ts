@@ -1,4 +1,4 @@
-import { createMPInstance } from '../src/index';
+import { createMPInstance, fileUrl, MP_BASE_URL } from '../src/index';
 import * as dotenv from 'dotenv';
 // Default import, not `* as assert`: the namespace form is not callable under TS, so every bare
 // `assert(...)` in this file failed to compile and the suite could not run at all. esModuleInterop is on.
@@ -153,6 +153,66 @@ describe('MP Instance', function () {
         const [file] = files;
         assert(typeof file.FileId === 'number', 'FileId is present, in PascalCase');
         assert(typeof file.IsDefaultImage === 'boolean', 'IsDefaultImage is present, in PascalCase');
+    });
+
+    it('should type a file Description as the string MP actually returns', async function () {
+        // Regression: AttachedFile.Description was declared `null` — the literal type, inferred from a
+        // sample response that happened to carry none. TypeScript raises nothing for `null === 'x'`, so
+        // every attempt to identify a file BY its description compiled to a comparison that could never
+        // be true, with no warning. A file's Summary is often the only thing telling two attachments on
+        // one record apart, so this silently defeated the one thing it is for.
+        const files = await mp.getFiles('contacts', 1);
+        if ('error' in files) {
+            assert.fail(`getFiles failed: ${JSON.stringify(files.error, null, 2)}`);
+        }
+
+        const [file] = files;
+        assert.strictEqual(typeof file.Description, 'string', 'Description is a string, never null');
+
+        // The comparison the type used to make impossible. It must compile AND be a real test.
+        const named = files.filter(f => f.Description === file.Description);
+        assert(named.length > 0, 'a file can be found by its description');
+    });
+
+    it('should build the public URL a file is served from', function () {
+        // Keyed by the GUID and not the numeric FileId: MP answers this URL with no credentials at all,
+        // which is what makes it the only thing worth handing to an <img> or a spreadsheet. Exposed
+        // because callers were otherwise hardcoding the MP host to build it themselves.
+        assert.strictEqual(fileUrl('abc-123'), `${MP_BASE_URL}/files/abc-123`);
+        assert(fileUrl('abc-123').startsWith('https://'), 'absolute, not a path');
+    });
+
+    it('should upload then delete a file (roundtrip)', async function () {
+        // deleteFile did not exist: there was no way to remove a file through this client at all, so
+        // callers had to mint their own OAuth token and drop to raw HTTP. It cannot go through deleteMany
+        // for the same reason getFiles cannot go through getMany — that speaks the table convention
+        // (POST {path}/delete) and the Files API is a plain DELETE /files/{file}.
+        const png = Buffer.from(
+            'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==',
+            'base64'
+        );
+        const form = new FormData();
+        form.append('File', new File([png], `${v4()}.png`, { type: 'image/png' }));
+        form.append('Description', 'mp-js-api roundtrip test');
+        form.append('Default', 'false');
+
+        const uploaded = await mp.uploadFile('contacts', 1, form);
+        if ('error' in uploaded) {
+            assert.fail(`uploadFile failed: ${JSON.stringify(uploaded.error, null, 2)}`);
+        }
+        assert(typeof uploaded.FileId === 'number', 'the new file has an id');
+        assert.strictEqual(uploaded.Description, 'mp-js-api roundtrip test', 'the description round-trips');
+
+        const deleted = await mp.deleteFile(uploaded.FileId);
+        if ('error' in deleted) {
+            assert.fail(`deleteFile failed: ${JSON.stringify(deleted.error, null, 2)}`);
+        }
+
+        const after = await mp.getFiles('contacts', 1);
+        if ('error' in after) {
+            assert.fail(`getFiles failed: ${JSON.stringify(after.error, null, 2)}`);
+        }
+        assert(!after.some(f => f.FileId === uploaded.FileId), 'the file is gone from the record');
     });
 
     it('should download a file by FileId, and by UniqueFileId', async function () {

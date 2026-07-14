@@ -25,6 +25,15 @@ export type APIGetProceduresInstance = (search?: string, config?: AxiosRequestCo
 export type APIExecuteProcedureInstance = <T = Record<string, any>>(procedureName: string, input?: Record<string, any>, config?: AxiosRequestConfig) => Promise<T[][] | { error: ErrorDetails; }>;
 
 
+/**
+ * The MP instance this client talks to.
+ *
+ * Stated once. It was previously spelled out twice inside this file (the axios baseURL and the token
+ * endpoint) and could not be reached from anywhere else, which forced every consumer that needed to build
+ * a file URL to hardcode the host a third time.
+ */
+export const MP_BASE_URL = 'https://mp.revival.com/ministryplatformapi';
+
 export interface MPApiBase {
   getOne: APIGetOneInstance;
   getMany: APIGetMultipleInstance;
@@ -104,7 +113,7 @@ const createTokenGetter = (auth: { username: string; password: string; }, timeou
     // If the token is near expiration, get a new one.
     if (!token || token.expiration - 60000 < Date.now()) {
       const tokenRes = await axios.post<TokenData>(
-        'https://mp.revival.com/ministryplatformapi/oauth/connect/token',
+        `${MP_BASE_URL}/oauth/connect/token`,
         new URLSearchParams({
           grant_type: 'client_credentials',
           scope: 'http://www.thinkministry.com/dataplatform/scopes/all',
@@ -146,7 +155,7 @@ export const createApiBase = ({ auth, messaging, timeout = 30000 }: {
    */
   const getToken = createTokenGetter(auth, timeout);
   const api = axios.create({
-    baseURL: 'https://mp.revival.com/ministryplatformapi',
+    baseURL: MP_BASE_URL,
     timeout,
   });
 
