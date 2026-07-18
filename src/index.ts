@@ -1,5 +1,5 @@
 import { AxiosError, AxiosInstance, AxiosRequestConfig } from 'axios';
-import { createApiBase, MPApiBase, ErrorDetails, MPGetQuery, MPCreateQuery, MPUpdateQuery, DateTimeIsoString } from './api';
+import { createApiBase, MPApiBase, ErrorDetails, MPGetQuery, MPCreateQuery, MPUpdateQuery, DateTimeIsoString, MPAuth, MPCredentials, MPBearerAuth } from './api';
 import { convertToCamelCase, convertToSnakeCase, convertToPascalCase, convertFromPascalCase, escapeSql, stringifyURLParams } from './utils/converters';
 import { Contact, ContactRecord } from './tables/contacts';
 import { Communication, CommunicationInfo, CommunicationType, CommunicationStatus, TextingComplianceLevel } from './endpoints/communications';
@@ -402,7 +402,7 @@ export type MPInstance = {
 
 
 export const createMPInstance = ({ auth, messaging, timeout }: {
-  auth: { username: string; password: string; };
+  auth: MPAuth;
   /** Resilience for MP's non-concurrency-safe messaging endpoints. See createApiBase. */
   messaging?: { concurrency?: number; retries?: number; retryBaseDelayMs?: number; };
   /** Per-request timeout (ms) for every MP call. Default 30000. */
@@ -878,6 +878,11 @@ export {
   ParameterDirection,
   ParameterDataType,
   ProcedureInput,
+
+  // Auth
+  MPAuth,
+  MPCredentials,
+  MPBearerAuth,
 
   // Utilities
   ErrorDetails,

@@ -263,4 +263,35 @@ describe('MP Instance', function () {
         const missing = await mp.downloadFile(999999999);
         assert('error' in missing, 'a missing file comes back as an error result');
     });
+
+    it('should authenticate with a caller-supplied bearer token (getToken)', async function () {
+        // Mint a service-account token by hand, then drive an instance that knows ONLY getToken — the
+        // path that lets a caller run calls AS a signed-in user instead of the service account.
+        const basic = Buffer.from(`${MP_USERNAME}:${MP_PASSWORD}`).toString('base64');
+        const res = await fetch(`${MP_BASE_URL}/oauth/connect/token`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/x-www-form-urlencoded', Authorization: `Basic ${basic}` },
+            body: new URLSearchParams({
+                grant_type: 'client_credentials',
+                scope: 'http://www.thinkministry.com/dataplatform/scopes/all'
+            }).toString()
+        });
+        assert(res.ok, 'minted a service-account token');
+        const { access_token } = await res.json() as { access_token: string };
+
+        let calls = 0;
+        const bearerMp = createMPInstance({ auth: { getToken: () => { calls++; return access_token; } } });
+        const contacts = await bearerMp.getContacts({ filter: 'Last_Name LIKE \'Ferreira\'', top: 1 });
+        if ('error' in contacts) {
+            assert.fail(`bearer read failed: ${JSON.stringify(contacts.error, null, 2)}`);
+        }
+        assert(contacts instanceof Array, 'the bearer path returns rows');
+        assert(calls > 0, 'getToken was consulted to build the request');
+    });
+
+    it('should report an error when getToken yields an empty token, not send a blank bearer', async function () {
+        const bad = createMPInstance({ auth: { getToken: () => '' } });
+        const contacts = await bad.getContacts({ top: 1 });
+        assert('error' in contacts, 'an empty token surfaces as an error result');
+    });
 });

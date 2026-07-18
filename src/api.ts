@@ -106,7 +106,28 @@ function isDeadlockError(err: unknown): boolean {
 
 const sleep = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms));
 
-const createTokenGetter = (auth: { username: string; password: string; }, timeout?: number) => {
+/**
+ * How an MP instance authenticates.
+ *  - {@link MPCredentials} — service-account username/password; the lib mints a `client_credentials`
+ *    token and refreshes it near expiry.
+ *  - {@link MPBearerAuth} — a caller-supplied bearer (e.g. a signed-in user's token), so calls run AS
+ *    that user rather than the service account. The caller owns the token's lifetime: `getToken` is
+ *    awaited on every request and may return a cached token or refresh one.
+ */
+export type MPCredentials = { username: string; password: string; };
+export type MPBearerAuth = { getToken: () => string | Promise<string>; };
+export type MPAuth = MPCredentials | MPBearerAuth;
+
+const createTokenGetter = (auth: MPAuth, timeout?: number) => {
+  // A caller-supplied bearer is used verbatim — the lib neither mints nor caches it.
+  if ('getToken' in auth) {
+    return async () => {
+      const supplied = await auth.getToken();
+      if (!supplied) throw new Error('mp-js-api: getToken() returned an empty token');
+      return supplied;
+    };
+  }
+
   let token: AccessToken | undefined;
 
   return async () => {
@@ -140,7 +161,7 @@ const createTokenGetter = (auth: { username: string; password: string; }, timeou
 };
 
 export const createApiBase = ({ auth, messaging, timeout = 30000 }: {
-  auth: { username: string; password: string; };
+  auth: MPAuth;
   /**
    * Resilience for MP's non-concurrency-safe messaging endpoints (/communications, /messages,
    * /texts). Defaults: concurrency 1 (fully serialized), 4 deadlock retries, 150ms base backoff.
