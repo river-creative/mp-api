@@ -48,17 +48,24 @@ describe('toCapitalSnakeCase', function () {
     assert.strictEqual(toCapitalSnakeCase(''), '');
   });
 
-  it('separates a trailing number, one underscore per digit — a known limitation', function () {
-    // Pinned as it stands rather than left to chance. Of the 81 columns on the live instance that
-    // contain a digit, this reproduces the 8 where MP made the digit its own segment; a digit glued to
-    // letters (Code2, Form_I9, Vision2_Program_ID, the __F1* imports) cannot be produced at all,
-    // because Code2 and Code_2 are different columns and nothing in the name says which MP used.
+  it('separates a number from the word it follows, keeping the number whole', function () {
+    // Only the FIRST digit of a run takes the separator, matching the sibling C# policy: the two
+    // clients write the same MP instance and must agree on what a column is called. This used to
+    // split every digit, so Active_Days_Past_30_Days came out as Active_Days_Past_3_0_Days — a column
+    // MP does not have, and one it would have discarded from a write in silence.
     assert.strictEqual(toCapitalSnakeCase('addressLine1'), 'Address_Line_1');
     assert.strictEqual(toCapitalSnakeCase('person1'), 'Person_1');
-    assert.strictEqual(toCapitalSnakeCase('field123Name'), 'Field_1_2_3_Name');
-    // One digit column the C# client reproduces and this one does not: it separates only the FIRST
-    // digit of a run, so ActiveDaysPast30Days survives there and splits here.
-    assert.strictEqual(toCapitalSnakeCase('activeDaysPast30Days'), 'Active_Days_Past_3_0_Days');
+    assert.strictEqual(toCapitalSnakeCase('activeDaysPast30Days'), 'Active_Days_Past_30_Days');
+    assert.strictEqual(toCapitalSnakeCase('field123Name'), 'Field_123_Name');
+  });
+
+  it('cannot produce a column whose digit is glued to letters — a known limitation', function () {
+    // Not a rule that could be improved: Code2 and Code_2 are different columns and nothing in the
+    // property name says which one MP has. 72 of the 2,204 columns on the live instance are like this
+    // (Code2, Form_I9, Vision2_Program_ID, the __F1* imports); they need their literal spelling. None
+    // is written by any of our apps.
+    assert.strictEqual(toCapitalSnakeCase('code2'), 'Code_2');
+    assert.strictEqual(toCapitalSnakeCase('vision2ProgramID', { capitalIds: true }), 'Vision_2_Program_ID');
   });
 
   it('converts the keys of a write payload, which is where it is actually used', function () {
