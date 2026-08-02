@@ -154,9 +154,14 @@ export function toCamelCase(str: string, { capitalIds = false }: { capitalIds?: 
  *
  * **Known limitations**, both deliberately unchanged here — a key that hits either needs its own literal
  * spelling rather than this conversion:
- *  - Every digit takes a separator, so a multi-digit run splits: `field123Name` → `Field_1_2_3_Name`,
- *    and columns like `Code2`, `Vision2_Program_ID`, `Active_Days_Past_30_Days` and the `__F1*` /
- *    `__TheStand22*` import columns cannot be produced. (72 of the 2,204 columns on the live instance.)
+ *  - Every digit takes a separator, and one per digit, so a run splits: `field123Name` →
+ *    `Field_1_2_3_Name`. 81 columns on the live instance contain a digit and this reproduces 8 of them
+ *    — the ones where MP made the digit its own segment (`Address_Line_1`, `Person_2`, `Witness_1`).
+ *    A digit glued to letters cannot be produced at all, because `Code2` and `Code_2` are different
+ *    columns and nothing in the name says which MP used: `Code2`, `Code3`, `Form_I9`,
+ *    `Vision2_Program_ID`, `Active_Days_Past_30_Days` and the `__F1*` / `__TheStand22*` import columns.
+ *    The sibling C# client differs on exactly one point — it separates only the FIRST digit of a run,
+ *    so it also produces `Active_Days_Past_30_Days`; every other digit column defeats both.
  *  - Only `_` and `/` count as existing separators; a hyphen does not.
  */
 export function toCapitalSnakeCase(str: string, { capitalIds = false }: { capitalIds?: boolean } = {}) {

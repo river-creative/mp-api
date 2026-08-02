@@ -49,12 +49,16 @@ describe('toCapitalSnakeCase', function () {
   });
 
   it('separates a trailing number, one underscore per digit — a known limitation', function () {
-    // Pinned as it stands rather than left to chance: Address_Line_1 works, but a multi-digit run
-    // splits, so Code2 / Vision2_Program_ID / the __F1* import columns cannot be produced by this
-    // conversion and need their literal spelling. 72 of the 2,204 columns on the live instance.
+    // Pinned as it stands rather than left to chance. Of the 81 columns on the live instance that
+    // contain a digit, this reproduces the 8 where MP made the digit its own segment; a digit glued to
+    // letters (Code2, Form_I9, Vision2_Program_ID, the __F1* imports) cannot be produced at all,
+    // because Code2 and Code_2 are different columns and nothing in the name says which MP used.
     assert.strictEqual(toCapitalSnakeCase('addressLine1'), 'Address_Line_1');
     assert.strictEqual(toCapitalSnakeCase('person1'), 'Person_1');
     assert.strictEqual(toCapitalSnakeCase('field123Name'), 'Field_1_2_3_Name');
+    // One digit column the C# client reproduces and this one does not: it separates only the FIRST
+    // digit of a run, so ActiveDaysPast30Days survives there and splits here.
+    assert.strictEqual(toCapitalSnakeCase('activeDaysPast30Days'), 'Active_Days_Past_3_0_Days');
   });
 
   it('converts the keys of a write payload, which is where it is actually used', function () {
