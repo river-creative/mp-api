@@ -132,11 +132,68 @@ export function toCamelCase(str: string, { capitalIds = false }: { capitalIds?: 
   return capitalIds ? str.replace(/id$/i, 'ID') : str;
 }
 
+/**
+ * Converts a key to the Capital_Snake_Case MP names its columns with.
+ *
+ * Every write goes through this (createOne/createMany/updateMany → convertToSnakeCase), and **MP drops a
+ * column it does not recognise from a write without reporting anything** — the request returns 200 and
+ * stores nothing. So a name this gets wrong is not an error anyone sees; it is a value that silently
+ * never saves. Two rules exist purely because of that:
+ *
+ * 1. **A run of capitals is one word.** `attendantPINHash` → `Attendant_PIN_Hash`, not
+ *    `Attendant_P_I_N_Hash`. Only the LAST capital of a run starts a new word, and only when a lowercase
+ *    word actually follows it: `idCard` → `Id_Card`, but `contactID` keeps `ID` whole. The rule used to
+ *    special-case the literal `ID` alone, so every other acronym MP uses — `PIN`, `SMS`, `HR`, `IP` —
+ *    was split apart when a caller spelled it in capitals.
+ * 2. **Nothing is inserted at the start of the string.** A key that is already Capital_Snake_Case, i.e.
+ *    a real MP column name, comes back unchanged instead of gaining a leading underscore
+ *    (`Display_Name` → `_Display_Name` before this). Callers do pass column names.
+ *
+ * MP matches column names case-insensitively, which is why the ordinary camelCase spelling
+ * (`attendantPinHash` → `Attendant_Pin_Hash`) has always worked and still does.
+ *
+ * **Known limitations**, both deliberately unchanged here — a key that hits either needs its own literal
+ * spelling rather than this conversion:
+ *  - Every digit takes a separator, so a multi-digit run splits: `field123Name` → `Field_1_2_3_Name`,
+ *    and columns like `Code2`, `Vision2_Program_ID`, `Active_Days_Past_30_Days` and the `__F1*` /
+ *    `__TheStand22*` import columns cannot be produced. (72 of the 2,204 columns on the live instance.)
+ *  - Only `_` and `/` count as existing separators; a hyphen does not.
+ */
 export function toCapitalSnakeCase(str: string, { capitalIds = false }: { capitalIds?: boolean } = {}) {
+  if (!str) return str;
+
+  // Leading-underscore MP columns (`_Approved`, `__F1ActivityID`) capitalize after the underscores.
   str = str.replace(/(?<=^_|^__)[^\W_]/, match => match.at(0)?.toUpperCase() || '');
-  str = str.replace(/(?<!_|\/)(ID|[A-Z]|\d)/g, match => `_${match}`);
-  str = str.charAt(0).toUpperCase() + str.slice(1);
-  return capitalIds ? str.replace(/_id$/i, '_ID') : str;
+
+  const isUpper = (c: string) => c >= 'A' && c <= 'Z';
+  const isLower = (c: string) => c >= 'a' && c <= 'z';
+  const isDigit = (c: string) => c >= '0' && c <= '9';
+
+  let out = '';
+  for (let i = 0; i < str.length; i++) {
+    const char = str[i];
+    const prev = i > 0 ? str[i - 1] : '';
+    const next = i + 1 < str.length ? str[i + 1] : '';
+
+    // Position 0 has nothing to separate from, and a `_` or `/` already IS the boundary — adding one
+    // there either grows a leading underscore or doubles the separator, and both name a column that
+    // does not exist.
+    const boundaryAlreadyThere = i === 0 || prev === '_' || prev === '/';
+
+    if (!boundaryAlreadyThere) {
+      // Kept exactly as it was: every digit takes a separator, not just the first of a run. See the
+      // limitation noted above.
+      if (isDigit(char)) out += '_';
+      // A capital starts a new word when it follows a non-capital, or when it is the last capital of a
+      // run and a lowercase word follows it (the `H` in `PINHash`).
+      else if (isUpper(char) && (!isUpper(prev) || isLower(next))) out += '_';
+    }
+
+    out += char;
+  }
+
+  out = out.charAt(0).toUpperCase() + out.slice(1);
+  return capitalIds ? out.replace(/_id$/i, '_ID') : out;
 }
 
 // Function to recursively convert object keys to Capital_Snake_Case
