@@ -294,4 +294,80 @@ describe('MP Instance', function () {
         const contacts = await bad.getContacts({ top: 1 });
         assert('error' in contacts, 'an empty token surfaces as an error result');
     });
+    // ---------------------------------------------------------------------------
+    // Users API. Reads only: updateUser and setUserPassword mutate a real login, so they are
+    // deliberately not exercised here — a password reset against the live domain is not a test.
+    //
+    // The live cases need credentials for a client that is authorised for the Users API. That
+    // authorisation is per API client, not domain-wide: measured 2026-08-19, `RiverServices` is
+    // allowed and `RegForm` gets a flat 403 on /users. A 403 here means the credentials in .env
+    // belong to a client without Users access, not that the endpoint is broken.
+    // ---------------------------------------------------------------------------
+
+    it('should refuse a user search with nothing to match on', async function () {
+        await assert.rejects(
+            () => mp.findUsers({}),
+            /name or logOnName/,
+            'a term-less search fails instead of returning every user in the domain'
+        );
+    });
+
+    it('should find exactly the user asked for, not every user', async function () {
+        // The assertion that matters: a search that does not filter returns all 104 users, which is
+        // what an unprefixed query parameter silently produces. One row is the proof the `$` is there.
+        const users = await mp.findUsers({ logOnName: 'mpadmin' });
+        if ('error' in users) {
+            assert.fail(`findUsers failed (a 403 means this client is not authorised for /users): ${JSON.stringify(users.error, null, 2)}`);
+        }
+        assert(users instanceof Array, 'response is an array');
+        assert.equal(users.length, 1, 'the search filtered rather than returning the whole domain');
+        const [user] = users;
+        assert.equal(user.logOnName, 'mpadmin', 'and it is the user that was asked for');
+        // The keys prove the PascalCase response was converted: MP answers Id/Name/LogOnName/UniqueId.
+        assert(typeof user.id === 'number', 'id is a number');
+        assert(typeof user.logOnName === 'string' && user.logOnName.length > 0, 'logOnName is populated');
+        assert(typeof user.uniqueId === 'string' && user.uniqueId.includes('-'), 'uniqueId is a GUID');
+    });
+
+    it('should read one user by id', async function () {
+        const found = await mp.findUsers({ logOnName: 'mpadmin' });
+        if ('error' in found) {
+            assert.fail(`findUsers failed (a 403 means this client is not authorised for /users): ${JSON.stringify(found.error, null, 2)}`);
+        }
+        assert(found.length > 0, 'a user to read');
+
+        const user = await mp.getUser(found[0].id);
+        if (user === undefined) assert.fail('the user we just found could not be read back');
+        if ('error' in user) {
+            assert.fail(`getUser failed: ${JSON.stringify(user.error, null, 2)}`);
+        }
+        assert.equal(user.userId, found[0].id, 'returns the requested user');
+        assert(typeof user.contactId === 'number', 'carries the linked contact id');
+        assert(typeof user.userName === 'string', 'carries the login name');
+        assert(!('newPassword' in user) || user.newPassword === null, 'never echoes a password back');
+    });
+
+    it('should match nothing when nothing matches', async function () {
+        const users = await mp.findUsers({ logOnName: 'zzz-no-such-login' });
+        if ('error' in users) assert.fail(`findUsers failed: ${JSON.stringify(users.error, null, 2)}`);
+        assert.equal(users.length, 0, 'an unmatched search is empty, not everybody');
+    });
+
+    it('should answer undefined for a user that does not exist', async function () {
+        // MP replies 200 with a body of literal null here, so this is the shape callers must handle.
+        const user = await mp.getUser(999999999);
+        assert.equal(user, undefined, 'a missing user is undefined, not null and not an error');
+    });
+
+    it('should refuse to set an empty password', async function () {
+        // A well-formed but nonexistent id, deliberately: it lets the PASSWORD guard be what fires
+        // (an invalid id would trip the id guard first and prove nothing), while ensuring that if the
+        // password guard ever regresses this test hits a user that does not exist rather than
+        // performing a live administrative password reset on whoever id 1 is (MPAdmin).
+        await assert.rejects(
+            () => mp.setUserPassword(999999999, { newPassword: '' }),
+            /newPassword/,
+            'an empty password is a caller mistake, not a request to send'
+        );
+    });
 });

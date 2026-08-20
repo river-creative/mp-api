@@ -6,6 +6,7 @@ import { Communication, CommunicationInfo, CommunicationType, CommunicationStatu
 import { MessageInfo, MessageAddress } from './endpoints/messages';
 import { TextInfo } from './endpoints/texts';
 import { ProcedureInfo, ParameterInfo, ParameterDirection, ParameterDataType, ProcedureInput } from './endpoints/procedures';
+import { UserIdentifier, UserInfo, PasswordInfo, UserSearch } from './endpoints/users';
 import { Event, EventRecord } from './tables/events';
 import { Group, GroupRecord } from './tables/groups';
 import { Address, AddressRecord } from './tables/addresses';
@@ -398,6 +399,46 @@ export type MPInstance = {
     input?: ProcedureInput,
     config?: AxiosRequestConfig
   ): Promise<T[][] | { error: ErrorDetails; }>;
+
+  // Users API
+  /**
+   * Find users by display name or login name. Both terms accept `*` and `?` wildcards, and at least
+   * one must be given — MP answers a term-less search with every user in the domain.
+   *
+   * Throws (rather than returning `{ error }`) when given no search term, and likewise `getUser`,
+   * `updateUser` and `setUserPassword` throw on an invalid user id: those are caller mistakes, not MP
+   * failures, and failing fast beats a request that cannot mean anything.
+   */
+  findUsers(
+    search: UserSearch,
+    config?: AxiosRequestConfig
+  ): Promise<UserIdentifier[] | { error: ErrorDetails; }>;
+  /**
+   * Read one user's profile (spans dp_Users and their Contact).
+   * Resolves to `undefined` when no such user exists — MP answers that with 200 and a null body.
+   */
+  getUser(
+    userId: number,
+    config?: AxiosRequestConfig
+  ): Promise<UserInfo | undefined | { error: ErrorDetails; }>;
+  /** Update a user's profile. Only the fields present are written. */
+  updateUser(
+    userId: number,
+    data: UserInfo,
+    config?: AxiosRequestConfig
+  ): Promise<UserInfo | { error: ErrorDetails; }>;
+  /**
+   * Set or change a user's password. Supply `oldPassword` to require the current one (a
+   * self-service change); omit it for an administrative reset.
+   *
+   * This is the only supported way to give an account a usable password: MP owns the hashing, so a
+   * password written straight into `dp_Users.Password` is not a credential anyone can log in with.
+   */
+  setUserPassword(
+    userId: number,
+    password: PasswordInfo,
+    config?: AxiosRequestConfig
+  ): Promise<{ success: true; status?: unknown } | { error: ErrorDetails; }>;
 };
 
 
@@ -412,7 +453,8 @@ export const createMPInstance = ({ auth, messaging, timeout }: {
   const {
     getOne, getMany, createOne, createMany, updateMany, deleteMany, createFile, updateFile,
     get, post, put, del, getError,
-    sendCommunication, sendMessage, sendText, getProcedures, executeProcedure
+    sendCommunication, sendMessage, sendText, getProcedures, executeProcedure,
+    findUsers, getUser, updateUser, setUserPassword
   } = createApiBase({ auth, messaging, timeout });
 
   return {
@@ -831,6 +873,12 @@ export const createMPInstance = ({ auth, messaging, timeout }: {
     // Procedures API
     getProcedures,
     executeProcedure,
+
+    // Users API
+    findUsers,
+    getUser,
+    updateUser,
+    setUserPassword,
   };
 };
 
@@ -878,6 +926,12 @@ export {
   ParameterDirection,
   ParameterDataType,
   ProcedureInput,
+
+  // Users endpoint types
+  UserIdentifier,
+  UserInfo,
+  PasswordInfo,
+  UserSearch,
 
   // Auth
   MPAuth,

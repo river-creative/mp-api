@@ -5,6 +5,7 @@ import { Communication, CommunicationInfo } from './endpoints/communications';
 import { MessageInfo } from './endpoints/messages';
 import { TextInfo } from './endpoints/texts';
 import { ProcedureInfo } from './endpoints/procedures';
+import { UserIdentifier, UserInfo, PasswordInfo, UserSearch } from './endpoints/users';
 
 
 export type APIGetOneInstance = <T extends Record<string, any>>({ id, path, mpQuery, config }: APIGetParameter & { id: number; }) => Promise<T | undefined | { error: ErrorDetails; }>;
@@ -23,6 +24,12 @@ export type APISendTextInstance = (data: TextInfo, config?: AxiosRequestConfig) 
 // Procedures API types
 export type APIGetProceduresInstance = (search?: string, config?: AxiosRequestConfig) => Promise<ProcedureInfo[] | { error: ErrorDetails; }>;
 export type APIExecuteProcedureInstance = <T = Record<string, any>>(procedureName: string, input?: Record<string, any>, config?: AxiosRequestConfig) => Promise<T[][] | { error: ErrorDetails; }>;
+
+// Users API types
+export type APIFindUsersInstance = (search: UserSearch, config?: AxiosRequestConfig) => Promise<UserIdentifier[] | { error: ErrorDetails; }>;
+export type APIGetUserInstance = (userId: number, config?: AxiosRequestConfig) => Promise<UserInfo | undefined | { error: ErrorDetails; }>;
+export type APIUpdateUserInstance = (userId: number, data: UserInfo, config?: AxiosRequestConfig) => Promise<UserInfo | { error: ErrorDetails; }>;
+export type APISetUserPasswordInstance = (userId: number, password: PasswordInfo, config?: AxiosRequestConfig) => Promise<{ success: true; status?: unknown } | { error: ErrorDetails; }>;
 
 
 /**
@@ -55,6 +62,11 @@ export interface MPApiBase {
   // Procedures API
   getProcedures: APIGetProceduresInstance;
   executeProcedure: APIExecuteProcedureInstance;
+  // Users API
+  findUsers: APIFindUsersInstance;
+  getUser: APIGetUserInstance;
+  updateUser: APIUpdateUserInstance;
+  setUserPassword: APISetUserPasswordInstance;
 }
 
 export interface ErrorDetails {
@@ -102,6 +114,43 @@ function isDeadlockError(err: unknown): boolean {
   const e = err as AxiosError | undefined;
   const reason = String((e?.response?.data as { Message?: string; } | undefined)?.Message ?? e?.message ?? '');
   return /deadlock|rerun the transaction/i.test(reason);
+}
+
+const SECRET_KEY_PATTERN = /password|secret|token|credential/i;
+
+/**
+ * A request body safe to put in an error: same shape, secrets replaced.
+ *
+ * Recursive, and array-preserving, because neither is optional here. Every table write in this library
+ * sends an ARRAY of rows (createMany/updateMany/deleteMany), so a top-level-only pass would both miss a
+ * credential inside a row and — by rebuilding the array through Object.fromEntries — report
+ * `{"0":{…},"1":{…}}` as the payload that was sent, corrupting the very diagnosability this field
+ * exists for.
+ *
+ * A body that cannot be parsed as JSON is dropped rather than guessed at.
+ */
+function scrubSecrets(value: unknown): unknown {
+  if (Array.isArray(value)) return value.map(scrubSecrets);
+  if (value === null || typeof value !== 'object') return value;
+
+  return Object.fromEntries(
+    Object.entries(value as Record<string, unknown>).map(([key, val]) =>
+      SECRET_KEY_PATTERN.test(key) ? [key, '«redacted»'] : [key, scrubSecrets(val)]
+    )
+  );
+}
+
+function redactCredentials(data: unknown): string | undefined {
+  if (data == null) return undefined;
+  if (typeof data !== 'string') return undefined;
+
+  try {
+    const parsed = JSON.parse(data);
+    if (parsed === null || typeof parsed !== 'object') return data;
+    return JSON.stringify(scrubSecrets(parsed));
+  } catch {
+    return SECRET_KEY_PATTERN.test(data) ? '«redacted»' : data;
+  }
 }
 
 const sleep = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms));
@@ -370,6 +419,13 @@ export const createApiBase = ({ auth, messaging, timeout = 30000 }: {
 
 
 
+/**
+ * The keys whose values must never leave this library inside an error.
+ *
+ * `ErrorDetails.data` carries the OUTGOING request body so a failed write can be diagnosed — which is
+ * exactly what makes it dangerous on the credential endpoints: a rejected `set-user-password` would
+ * otherwise hand the caller the member's plaintext password, and callers log error objects whole.
+ */
   const getError = function (error: AxiosError): ErrorDetails {
     return {
       message: error.message,
@@ -378,7 +434,7 @@ export const createApiBase = ({ auth, messaging, timeout = 30000 }: {
       status: error.status,
       method: error.config?.method,
       url: error.config?.url,
-      data: error.config?.data,
+      data: redactCredentials(error.config?.data),
       reason: (error.response?.data as any)?.Message,
     };
   };
@@ -443,6 +499,81 @@ export const createApiBase = ({ auth, messaging, timeout = 30000 }: {
     }
   };
 
+  // Users API: GET /users?$name=&$logOnName=
+  //
+  // DOLLAR-PREFIXED, and measured that way: `?logOnName=mpadmin` returns all 104 users while
+  // `?$logOnName=mpadmin` returns 1 and `?$logOnName=zzz` returns 0. MP does not reject a parameter it
+  // cannot bind, it ignores it — so the unprefixed spelling reads as "no filter", which looks like a
+  // working call returning everything. The query is still built here rather than through
+  // stringifyURLParams, because that helper escapes `%` and would eat the `*` wildcards.
+  const findUsers: APIFindUsersInstance = async (search, config) => {
+    const params = new URLSearchParams();
+    if (search?.name) params.set('$name', search.name);
+    if (search?.logOnName) params.set('$logOnName', search.logOnName);
+    // MP has nothing to match on without a term and answers with the whole user list; that is a
+    // caller mistake, so it fails here rather than quietly returning every user in the domain.
+    if (![...params.keys()].length) throw new Error('findUsers requires a name or logOnName to search for');
+
+    try {
+      const res = await get<UserIdentifier[]>(`/users?${params.toString()}`, config);
+      return res.data.map(user => convertFromPascalCase<UserIdentifier>(user));
+    } catch (err) {
+      return { error: getError(err as AxiosError) };
+    }
+  };
+
+  // Users API: GET /users/{userId}
+  //
+  // A user that does not exist comes back as HTTP 200 with a body of literal `null` — MP declares no
+  // 404 here — so "not found" is `undefined`, exactly as getOne models it. Typing it as UserInfo would
+  // hand callers a null that their `'error' in result` check throws on.
+  const getUser: APIGetUserInstance = async (userId, config) => {
+    if (!Number.isInteger(userId) || userId <= 0) throw new Error(`getUser requires a positive user id, got: ${userId}`);
+
+    try {
+      const res = await get<UserInfo | null>(`/users/${userId}`, config);
+      return res.data ? convertFromPascalCase<UserInfo>(res.data) : undefined;
+    } catch (err) {
+      return { error: getError(err as AxiosError) };
+    }
+  };
+
+  // Users API: PUT /users/{userId}
+  // A DTO, not a table row: MP spells these keys PascalCase (FirstName), so the capital-snake
+  // converter the table writes use would produce First_Name and bind to nothing.
+  const updateUser: APIUpdateUserInstance = async (userId, data, config) => {
+    if (!Number.isInteger(userId) || userId <= 0) throw new Error(`updateUser requires a positive user id, got: ${userId}`);
+
+    try {
+      const res = await put<UserInfo>(`/users/${userId}`, convertToPascalCase(data), config);
+      return convertFromPascalCase<UserInfo>(res.data);
+    } catch (err) {
+      return { error: getError(err as AxiosError) };
+    }
+  };
+
+  // Users API: POST /users/{userId}/set-user-password
+  //
+  // MP answers with an operation-status payload rather than the user record. That payload is RETURNED
+  // rather than dropped: a 2xx carrying a refusal is exactly how this library previously recorded a
+  // communication as 'sent' that MP had thrown away, and a caller that cannot see the status has no way
+  // to tell a set password from a rejected one. The new password is never echoed back.
+  const setUserPassword: APISetUserPasswordInstance = async (userId, password, config) => {
+    if (!Number.isInteger(userId) || userId <= 0) throw new Error(`setUserPassword requires a positive user id, got: ${userId}`);
+    if (!password?.newPassword) throw new Error('setUserPassword requires a newPassword');
+
+    try {
+      const res = await post<Record<string, any>>(
+        `/users/${userId}/set-user-password`,
+        convertToPascalCase(password),
+        config
+      );
+      return { success: true, status: res.data ?? undefined };
+    } catch (err) {
+      return { error: getError(err as AxiosError) };
+    }
+  };
+
   return {
     get,
     put,
@@ -462,6 +593,10 @@ export const createApiBase = ({ auth, messaging, timeout = 30000 }: {
     sendText,
     getProcedures,
     executeProcedure,
+    findUsers,
+    getUser,
+    updateUser,
+    setUserPassword,
   };
 };
 
