@@ -1,0 +1,43 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+# Tests run on devtop, never on a workstation (2026-10-06). One definition, two ways in:
+#   - `ci-local` from any LAN machine runs this file on devtop with act, on the current working tree
+#     (uncommitted changes included) and pushes nothing. See claude-config knowledge/scripts/README.md.
+#   - A push or pull request runs it on GitHub, which hands it to devtop's runner once the repository
+#     variable CI_RUNNER is `devtop`. GitHub-hosted jobs in river-creative have been refused for
+#     billing since 2026-09-16 (mp-forms' ci.yml), so without that variable a GitHub run cannot start.
+#
+# `npm test` is the hermetic suite only. test/*.live.spec.ts talks to PRODUCTION MinistryPlatform and
+# writes to it, so it runs only as `npm run test:live`, deliberately and with MP credentials, never here.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    name: Test
+    runs-on: ${{ vars.CI_RUNNER || 'ubuntu-latest' }}
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+
+      - run: npm ci
+
+      # Type-checks the library the way `prepare` builds it before publishing.
+      - run: npm run build
+
+      - run: npm test
