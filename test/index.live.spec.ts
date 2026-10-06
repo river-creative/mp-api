@@ -79,7 +79,9 @@ describe('MP Instance', function () {
             assert.equal(events.length, 10, 'array length is 10');
         }
     });
-    it('should create one contact', async function () {
+    it('should create then delete a contact (roundtrip)', async function () {
+        // MP_BASE_URL is PRODUCTION, so this test removes what it creates. It used to be "should create
+        // one contact": a new "Doe, John" contact on every run, never deleted.
         const contact = await mp.createContact({
             firstName: 'John',
             lastName: 'Doe',
@@ -100,6 +102,20 @@ describe('MP Instance', function () {
                 assert.fail(JSON.stringify(error, null, 2));
             }
         }
+        assert(contact.contactID > 0, 'created contact has an id');
+
+        const deleted = await mp.deleteMany({ path: '/tables/contacts', ids: [contact.contactID] });
+        if ('error' in deleted) {
+            assert.fail(
+                `delete failed, so contact ${contact.contactID} is left in MP; remove it by hand: ` +
+                JSON.stringify(deleted.error, null, 2)
+            );
+        }
+
+        // Read back rather than trusting the delete's answer: a body-form bulk delete has been seen to no-op
+        // silently on this MP instance (mp-tools' notes).
+        const after = await mp.getContact(contact.contactID);
+        assert(after === undefined, `contact ${contact.contactID} still exists after delete; remove it by hand`);
     });
     it('should create then delete a participation detail (roundtrip)', async function () {
         // Live delete is destructive, so this test only operates on a record it

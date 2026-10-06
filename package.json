@@ -4,7 +4,8 @@
   "description": "Node MinistryPlatform API",
   "main": "dist/index.js",
   "scripts": {
-    "test": "mocha --require ts-node/register test/*",
+    "test": "mocha --require ts-node/register \"test/**/*.spec.ts\" --ignore \"test/**/*.live.spec.ts\"",
+    "test:live": "mocha --require ts-node/register \"test/**/*.live.spec.ts\"",
     "build": "tsc",
     "compile": "tsc",
     "prepare": "tsc"
