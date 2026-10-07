@@ -9,9 +9,10 @@ on:
 # Tests run on devtop, never on a workstation (2026-10-06). One definition, two ways in:
 #   - `ci-local` from any LAN machine runs this file on devtop with act, on the current working tree
 #     (uncommitted changes included) and pushes nothing. See claude-config knowledge/scripts/README.md.
-#   - A push or pull request runs it on GitHub, which hands it to devtop's runner once the repository
-#     variable CI_RUNNER is `devtop`. GitHub-hosted jobs in river-creative have been refused for
-#     billing since 2026-09-16 (mp-forms' ci.yml), so without that variable a GitHub run cannot start.
+#   - A push or pull request runs it on GitHub, on a GitHub-hosted runner. This repository is PUBLIC, so
+#     it must never run on devtop: a pull request from a fork would execute its code there. GitHub's
+#     runner groups refuse public repositories by default for that reason, which left the job queued
+#     with nobody to take it (2026-10-06). Hosted runners are free for public repositories.
 #
 # `npm test` is the hermetic suite only. test/*.live.spec.ts talks to PRODUCTION MinistryPlatform and
 # writes to it, so it runs only as `npm run test:live`, deliberately and with MP credentials, never here.
@@ -25,7 +26,7 @@ permissions:
 jobs:
   test:
     name: Test
-    runs-on: ${{ vars.CI_RUNNER || 'ubuntu-latest' }}
+    runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@v4
