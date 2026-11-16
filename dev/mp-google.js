@@ -792,6 +792,55 @@ function stringifyURLParams(mpOptions = {}) {
 
 
 
+/**
+ * Returns a value as one complete, quoted T-SQL string literal, for interpolating into a filter:
+ * `filter: \`Email_Address=${sqlLiteral(email)}\``. From a project that uses this library, call it
+ * through the library's identifier (e.g. `MP.sqlLiteral(email)`).
+ *
+ * MP's `$filter` is raw T-SQL, not a parameterized query, so a value pasted between quotes by hand
+ * (`Email_Address='${email}'`) can close the literal and append its own conditions. Doubling EVERY
+ * apostrophe is T-SQL's complete escape for a string literal, and it can only be done here, on the
+ * value: once the value sits inside the whole filter, nothing can tell its apostrophes from the
+ * quotes around it. That is why `escapeApostrophes`, `escapeSql` and the String.prototype versions
+ * below are not a security boundary.
+ *
+ * It composes with them: every apostrophe in the result is either one of a doubled pair or a
+ * delimiter, so none has a word character on both sides, and the blanket escape `getMany` applies to
+ * the whole request passes it through unchanged. Place it after a non-word character (`=`, a space,
+ * `(` or `,`), never glued to one: `N${sqlLiteral(x)}` would put a word character before the opening
+ * quote, and the blanket escape would then double that quote.
+ *
+ * - For `=`, `<>`, `IN (...)` and the like. Under LIKE, `%`, `_` and `[` are wildcards; this does not
+ *   escape them, so a LIKE pattern built from outside input needs those bracket-escaped first.
+ * - The literal is not `N'...'` (see above), so a character outside the server's code page compares
+ *   as `?`: the same as every hand-quoted filter before it.
+ * - Throws on null/undefined (write `IS NULL` instead: `= NULL` matches nothing), on a non-finite
+ *   number, and on any other type: failing at the call beats a filter that silently means something
+ *   else.
+ *
+ * @param {(string|number|boolean)} value
+ * @returns {string} the quoted literal, e.g. `'O''Brien'`
+ */
+function sqlLiteral(value) {
+  if (value === null || value === undefined)
+    throw new TypeError(`sqlLiteral: got ${value}. A NULL comparison is written 'IS NULL', not as a literal.`);
+
+  if (typeof value === 'number' && !Number.isFinite(value))
+    throw new TypeError(`sqlLiteral: got the number ${value}, which has no T-SQL literal.`);
+
+  if (typeof value !== 'string' && typeof value !== 'number' && typeof value !== 'boolean')
+    throw new TypeError(`sqlLiteral: expected a string, number or boolean, got ${Object.prototype.toString.call(value)}.`);
+
+  return `'${String(value).replace(/'/g, "''")}'`;
+}
+
+
+/**
+ * Doubles an apostrophe only BETWEEN two word characters, and URL-encodes `%`. NOT a security
+ * boundary: it runs over a whole assembled query, where it cannot tell a value's apostrophe from the
+ * quotes around the value, so `x' OR 1=1 OR 'a'='a` passes through untouched. It exists so a
+ * hand-written `O'Brien` survives; every interpolated value goes through `sqlLiteral` instead.
+ */
 function escapeSql(str) {
   return str.replace(/%|(?<=\w)'(?=\w)/g, function (char) {
     switch (char) {
@@ -828,6 +877,11 @@ String.prototype.addQuery = function (obj) {
 
 
 
+/**
+ * Applies `escapeApostrophe` to every string property: `getMany` runs it over the whole request,
+ * `$filter` included, and `createOne`/`updateOne` over every payload. NOT a security boundary, for
+ * the reason given at `escapeSql`: an interpolated value goes through `sqlLiteral`.
+ */
 function escapeApostrophes(obj) {
 
   if (obj !== null && typeof obj === 'object') {
@@ -847,6 +901,8 @@ function escapeApostrophes(obj) {
 }
 
 
+// Doubles an apostrophe only BETWEEN two word characters. NOT a security boundary (see escapeSql);
+// a value interpolated into a filter goes through sqlLiteral.
 String.prototype.escapeApostrophe = function () {
   return this.replace(/(?<=\w)'(?=\w)/g, function (char) {
     switch (char) {
@@ -858,6 +914,7 @@ String.prototype.escapeApostrophe = function () {
   });
 }
 
+// The prototype twin of escapeSql, and like it NOT a security boundary.
 String.prototype.escapeSql = function () {
   return this.replace(/%|(?<=\w)'(?=\w)/g, function (char) {
     switch (char) {

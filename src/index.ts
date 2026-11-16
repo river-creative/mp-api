@@ -885,6 +885,9 @@ export const createMPInstance = ({ auth, messaging, timeout }: {
 // Value exports (the block below re-exports TYPES only).
 export { fileUrl } from './tables/files';
 export { MP_BASE_URL } from './api';
+// The one safe way to put a value into a $filter; see its definition.
+export { sqlLiteral } from './utils/converters';
+export type { SqlLiteralValue } from './utils/converters';
 
 export {
   // Tables
